@@ -1,11 +1,10 @@
-
 -- Create tables for SoundBoard app
 
 -- Table for jam rooms
 CREATE TABLE IF NOT EXISTS public.jam_rooms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
-  host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  host_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   bpm INTEGER NOT NULL DEFAULT 120,
   key TEXT,
   is_private BOOLEAN NOT NULL DEFAULT true,
@@ -17,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.jam_rooms (
 CREATE TABLE IF NOT EXISTS public.tracks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   jam_room_id UUID NOT NULL REFERENCES public.jam_rooms(id) ON DELETE CASCADE,
-  creator_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   storage_path TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()

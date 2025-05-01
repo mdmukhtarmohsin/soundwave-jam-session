@@ -1,11 +1,10 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
 import { Volume, VolumeX, User, Clock, Play, Pause } from "lucide-react";
-import WaveformVisualizer from './WaveformVisualizer';
-import { audioEngine } from '@/services/AudioEngine';
-import { formatDistanceToNow } from 'date-fns';
+import WaveformVisualizer from "./WaveformVisualizer";
+import { audioEngine } from "@/services/AudioEngine";
+import { formatDistanceToNow } from "date-fns";
 
 interface TrackItemProps {
   id: string;
@@ -24,25 +23,25 @@ const TrackItem: React.FC<TrackItemProps> = ({
   timestamp,
   audioUrl,
   onVolumeChange,
-  onToggleMute
+  onToggleMute,
 }) => {
   const [volume, setVolume] = useState(75);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  
+
   useEffect(() => {
     if (audioUrl && !isLoaded) {
       audioEngine.addTrack(id, audioUrl, volume);
       setIsLoaded(true);
     }
-    
+
     return () => {
       if (isLoaded) {
         audioEngine.removeTrack(id);
       }
     };
-  }, [id, audioUrl, isLoaded, volume]);
+  }, [id, audioUrl, isLoaded]);
 
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
@@ -54,25 +53,31 @@ const TrackItem: React.FC<TrackItemProps> = ({
   const toggleMute = () => {
     const newMuteState = !isMuted;
     setIsMuted(newMuteState);
-    audioEngine.muteTrack(id, newMuteState);
+    if (newMuteState) {
+      audioEngine.setTrackVolume(id, 0);
+    } else {
+      audioEngine.setTrackVolume(id, volume);
+    }
     onToggleMute(id, newMuteState);
   };
-  
+
   const togglePlayback = () => {
     if (!audioUrl) return;
-    
+
     if (isPlaying) {
       audioEngine.pauseTrack(id);
       setIsPlaying(false);
     } else {
       audioEngine.playTrack(id);
       setIsPlaying(true);
-      
+
       // Listen for end of track to update UI
       const trackEnded = () => setIsPlaying(false);
-      const audioElement = document.getElementById(`audio-${id}`) as HTMLAudioElement;
+      const audioElement = document.getElementById(
+        `audio-${id}`
+      ) as HTMLAudioElement;
       if (audioElement) {
-        audioElement.addEventListener('ended', trackEnded, { once: true });
+        audioElement.addEventListener("ended", trackEnded, { once: true });
       }
     }
   };
@@ -103,7 +108,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               {audioUrl && (
                 <Toggle
@@ -114,7 +119,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
                   {isPlaying ? <Pause size={16} /> : <Play size={16} />}
                 </Toggle>
               )}
-              
+
               <Toggle
                 pressed={!isMuted}
                 onPressedChange={toggleMute}
@@ -125,11 +130,11 @@ const TrackItem: React.FC<TrackItemProps> = ({
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="flex-1 md:w-48">
-            <Slider 
-              value={[volume]} 
+            <Slider
+              value={[volume]}
               min={0}
               max={100}
               step={1}
@@ -138,13 +143,13 @@ const TrackItem: React.FC<TrackItemProps> = ({
               className={isMuted ? "opacity-50" : ""}
             />
           </div>
-          
+
           <div className="w-12 text-right text-sm font-mono text-white/70">
             {volume}%
           </div>
         </div>
       </div>
-      
+
       <div className="mt-3">
         <WaveformVisualizer isAnimated={isPlaying} height="h-10" />
       </div>
