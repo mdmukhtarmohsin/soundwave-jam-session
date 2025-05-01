@@ -1,15 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
-import { Volume, VolumeX, User, Clock } from "lucide-react";
+import { Volume, VolumeX, User, Clock, Play, Pause } from "lucide-react";
 import WaveformVisualizer from './WaveformVisualizer';
+import { audioEngine } from '@/services/AudioEngine';
+import { formatDistanceToNow } from 'date-fns';
 
 interface TrackItemProps {
   id: string;
   name: string;
   creator: string;
   timestamp: string;
+  audioUrl?: string;
   onVolumeChange: (id: string, volume: number) => void;
   onToggleMute: (id: string, muted: boolean) => void;
 }
@@ -19,22 +22,67 @@ const TrackItem: React.FC<TrackItemProps> = ({
   name,
   creator,
   timestamp,
+  audioUrl,
   onVolumeChange,
   onToggleMute
 }) => {
   const [volume, setVolume] = useState(75);
   const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  useEffect(() => {
+    if (audioUrl && !isLoaded) {
+      audioEngine.addTrack(id, audioUrl, volume);
+      setIsLoaded(true);
+    }
+    
+    return () => {
+      if (isLoaded) {
+        audioEngine.removeTrack(id);
+      }
+    };
+  }, [id, audioUrl, isLoaded, volume]);
 
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
     setVolume(newVolume);
+    audioEngine.setTrackVolume(id, newVolume);
     onVolumeChange(id, newVolume);
   };
 
   const toggleMute = () => {
     const newMuteState = !isMuted;
     setIsMuted(newMuteState);
+    audioEngine.muteTrack(id, newMuteState);
     onToggleMute(id, newMuteState);
+  };
+  
+  const togglePlayback = () => {
+    if (!audioUrl) return;
+    
+    if (isPlaying) {
+      audioEngine.pauseTrack(id);
+      setIsPlaying(false);
+    } else {
+      audioEngine.playTrack(id);
+      setIsPlaying(true);
+      
+      // Listen for end of track to update UI
+      const track = audioEngine.audioStreams?.get(id);
+      if (track) {
+        const onEnded = () => setIsPlaying(false);
+        track.audio.addEventListener('ended', onEnded, { once: true });
+      }
+    }
+  };
+
+  const formattedTimestamp = () => {
+    try {
+      return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
+    } catch {
+      return timestamp;
+    }
   };
 
   return (
@@ -51,18 +99,30 @@ const TrackItem: React.FC<TrackItemProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock size={12} />
-                  <span>{timestamp}</span>
+                  <span>{formattedTimestamp()}</span>
                 </div>
               </div>
             </div>
             
-            <Toggle
-              pressed={!isMuted}
-              onPressedChange={toggleMute}
-              className={isMuted ? "bg-muted" : "bg-soundboard-primary"}
-            >
-              {isMuted ? <VolumeX size={16} /> : <Volume size={16} />}
-            </Toggle>
+            <div className="flex items-center gap-2">
+              {audioUrl && (
+                <Toggle
+                  pressed={isPlaying}
+                  onPressedChange={togglePlayback}
+                  className={isPlaying ? "bg-soundboard-primary" : "bg-muted"}
+                >
+                  {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                </Toggle>
+              )}
+              
+              <Toggle
+                pressed={!isMuted}
+                onPressedChange={toggleMute}
+                className={isMuted ? "bg-muted" : "bg-soundboard-primary"}
+              >
+                {isMuted ? <VolumeX size={16} /> : <Volume size={16} />}
+              </Toggle>
+            </div>
           </div>
         </div>
         
@@ -86,7 +146,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
       </div>
       
       <div className="mt-3">
-        <WaveformVisualizer isAnimated={false} height="h-10" />
+        <WaveformVisualizer isAnimated={isPlaying} height="h-10" />
       </div>
     </div>
   );

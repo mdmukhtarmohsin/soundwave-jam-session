@@ -1,12 +1,15 @@
 
 import React from 'react';
 import TrackItem from './TrackItem';
+import { Track } from '@/types/database';
+import { formatDistanceToNow } from 'date-fns';
 
-interface Track {
+interface ProcessedTrack {
   id: string;
   name: string;
   creator: string;
   timestamp: string;
+  audioUrl?: string;
 }
 
 interface TrackListProps {
@@ -20,6 +23,15 @@ const TrackList: React.FC<TrackListProps> = ({
   onVolumeChange,
   onToggleMute
 }) => {
+  // Process tracks for display
+  const processedTracks: ProcessedTrack[] = tracks.map(track => ({
+    id: track.id,
+    name: track.name,
+    creator: track.creator?.name || 'Unknown user',
+    timestamp: track.created_at,
+    audioUrl: track.url
+  }));
+
   if (tracks.length === 0) {
     return (
       <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-8 flex flex-col items-center justify-center text-center">
@@ -31,13 +43,14 @@ const TrackList: React.FC<TrackListProps> = ({
 
   return (
     <div className="space-y-2">
-      {tracks.map((track) => (
+      {processedTracks.map((track) => (
         <TrackItem
           key={track.id}
           id={track.id}
           name={track.name}
           creator={track.creator}
           timestamp={track.timestamp}
+          audioUrl={track.audioUrl}
           onVolumeChange={onVolumeChange}
           onToggleMute={onToggleMute}
         />

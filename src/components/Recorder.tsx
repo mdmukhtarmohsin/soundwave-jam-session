@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mic, MicOff, Check } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
+import { audioEngine } from '@/services/AudioEngine';
 
 interface RecorderProps {
   onSaveLoop: (name: string, audioBlob: Blob) => void;
@@ -15,54 +16,79 @@ const Recorder: React.FC<RecorderProps> = ({ onSaveLoop }) => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'saving'>('idle');
   
-  const toggleRecording = () => {
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+  
+  const toggleRecording = async () => {
     if (!isRecording) {
-      startRecording();
+      await startRecording();
     } else {
-      stopRecording();
+      await stopRecording();
     }
   };
 
-  const startRecording = () => {
-    setIsRecording(true);
-    setRecordingState('recording');
-    setRecordingTime(0);
-    
-    // Start timer
-    const timer = setInterval(() => {
-      setRecordingTime(prevTime => {
-        if (prevTime >= 30) {
-          clearInterval(timer);
-          stopRecording();
-          return 30;
-        }
-        return prevTime + 1;
+  const startRecording = async () => {
+    try {
+      await audioEngine.startRecording();
+      
+      setIsRecording(true);
+      setRecordingState('recording');
+      setRecordingTime(0);
+      
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prevTime => {
+          if (prevTime >= 30) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            stopRecording();
+            return 30;
+          }
+          return prevTime + 1;
+        });
+      }, 1000);
+      
+      toast("Recording started", {
+        description: "Max recording length: 30 seconds",
       });
-    }, 1000);
-    
-    // This would be where we'd initialize the actual recording
-    toast("Recording started", {
-      description: "Max recording length: 30 seconds",
-    });
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      toast.error("Could not access microphone. Please check permissions.");
+    }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
     setIsRecording(false);
     setRecordingState('saving');
     
-    // This simulates saving the recording
-    setTimeout(() => {
-      // In a real app, we'd pass the actual audio blob
-      const mockAudioBlob = new Blob([], { type: 'audio/webm' });
-      onSaveLoop(trackName || `Loop ${new Date().toLocaleTimeString()}`, mockAudioBlob);
+    try {
+      const audioBlob = await audioEngine.stopRecording();
       
-      toast("Loop saved", {
-        description: `"${trackName || 'Unnamed Loop'}" added to tracks`,
+      // Set default track name if empty
+      const name = trackName || `Loop ${new Date().toLocaleTimeString()}`;
+      onSaveLoop(name, audioBlob);
+      
+      toast.success("Loop saved", {
+        description: `"${name}" added to tracks`,
       });
       
       setTrackName('');
       setRecordingState('idle');
-    }, 1500);
+    } catch (error) {
+      console.error('Failed to save recording:', error);
+      toast.error("Failed to save recording");
+      setRecordingState('idle');
+    }
   };
 
   return (

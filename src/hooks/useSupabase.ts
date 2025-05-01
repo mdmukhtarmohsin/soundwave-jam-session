@@ -3,31 +3,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/components/ui/sonner';
-
-interface JamRoom {
-  id: string;
-  title: string;
-  host_id: string;
-  bpm: number;
-  key: string;
-  is_private: boolean;
-  created_at: string;
-}
-
-interface Track {
-  id: string;
-  jam_room_id: string;
-  creator_id: string;
-  name: string;
-  storage_path: string;
-  created_at: string;
-}
-
-interface Profile {
-  id: string;
-  name: string;
-  avatar_url: string | null;
-}
+import { JamRoom, Track, Profile } from '@/types/database';
 
 export function useSupabase() {
   const { user } = useAuth();
@@ -158,12 +134,12 @@ export function useSupabase() {
       setLoading(true);
       
       // 1. Upload the audio file to storage
-      const filePath = `${user?.id}/${jamRoomId}/${Date.now()}_${fileName.replace(/\s+/g, '_')}.wav`;
+      const filePath = `${user?.id}/${jamRoomId}/${Date.now()}_${fileName.replace(/\s+/g, '_')}.webm`;
       
       const { data: fileData, error: uploadError } = await supabase.storage
         .from('audio')
         .upload(filePath, audioBlob, {
-          contentType: 'audio/wav'
+          contentType: 'audio/webm'
         });
       
       if (uploadError) throw uploadError;
