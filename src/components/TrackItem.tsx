@@ -138,105 +138,139 @@ const TrackItem: React.FC<TrackItemProps> = ({
   const muteToggleActiveClasses = "bg-red-600 hover:bg-red-700";
 
   return (
-    <div className="bg-gray-800/60 border border-gray-700/80 rounded-lg p-4 flex items-center justify-between gap-4 shadow-sm hover:border-gray-600/90 transition-colors">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {audioUrl && (
+    <div className="bg-gray-800/60 border border-gray-700/80 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 shadow-sm hover:border-gray-600/90 transition-colors">
+      <div className="flex flex-col md:flex-row md:items-center md:gap-4 flex-1 min-w-0">
+        <div className="hidden md:flex items-center gap-2 flex-shrink-0 md:order-1">
+          {audioUrl && (
+            <Toggle
+              size="sm"
+              pressed={isPlaying}
+              onPressedChange={togglePlayback}
+              className={`${toggleBaseClasses} ${
+                isPlaying ? toggleActiveClasses : toggleInactiveClasses
+              }`}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            </Toggle>
+          )}
           <Toggle
             size="sm"
-            pressed={isPlaying}
-            onPressedChange={togglePlayback}
+            pressed={isLooping}
+            onPressedChange={toggleLoop}
             className={`${toggleBaseClasses} ${
-              isPlaying ? toggleActiveClasses : toggleInactiveClasses
+              isLooping ? loopToggleActiveClasses : toggleInactiveClasses
             }`}
-            aria-label={isPlaying ? "Pause track" : "Play track"}
+            aria-label="Loop"
           >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            <Repeat size={16} />
           </Toggle>
-        )}
-        <Toggle
-          size="sm"
-          pressed={isLooping}
-          onPressedChange={toggleLoop}
-          className={`${toggleBaseClasses} ${
-            isLooping ? loopToggleActiveClasses : toggleInactiveClasses
-          }`}
-          aria-label={isLooping ? "Disable loop" : "Enable loop"}
-        >
-          <Repeat size={16} />
-        </Toggle>
-      </div>
+        </div>
 
-      <div className="flex-1 min-w-0 px-2">
-        <h3
-          className="font-medium text-white truncate text-sm leading-tight"
-          title={name}
-        >
-          {name}
-        </h3>
-        <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
-          <span title={creator} className="flex items-center gap-0.5 truncate">
-            <User size={12} />
-            {creator}
-          </span>
-          <span className="text-gray-600">·</span>
-          <span
-            title={timestamp}
-            className="flex items-center gap-0.5 flex-shrink-0"
+        <div className="flex-1 min-w-0 md:order-2">
+          <h3
+            className="font-medium text-white truncate text-sm leading-tight"
+            title={name}
           >
-            <Clock size={12} />
-            {formattedTimestamp()}
-          </span>
+            {name}
+          </h3>
+          <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5 flex-wrap">
+            <span
+              title={creator}
+              className="flex items-center gap-0.5 truncate"
+            >
+              <User size={12} />
+              {creator}
+            </span>
+            <span className="text-gray-600">·</span>
+            <span
+              title={timestamp}
+              className="flex items-center gap-0.5 flex-shrink-0"
+            >
+              <Clock size={12} />
+              {formattedTimestamp()}
+            </span>
+          </div>
         </div>
       </div>
 
       {audioUrl && (
-        <div className="h-10 w-32 md:w-48 lg:w-64 mx-2 flex-shrink-0">
+        <div className="h-10 w-full md:flex-1 md:min-w-[100px] md:max-w-[300px] md:mx-2 md:order-3">
           <WaveformVisualizer isAnimated={isPlaying} height="h-full" />
         </div>
       )}
       {!audioUrl && (
-        <div className="h-10 w-32 md:w-48 lg:w-64 mx-2 flex-shrink-0"></div>
+        <div className="h-10 w-full md:flex-1 md:min-w-[100px] md:max-w-[300px] md:mx-2 md:order-3"></div>
       )}
 
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <Toggle
-          size="sm"
-          pressed={isMuted}
-          onPressedChange={toggleMute}
-          className={`${toggleBaseClasses} ${
-            isMuted ? muteToggleActiveClasses : toggleInactiveClasses
-          }`}
-          aria-label={isMuted ? "Unmute track" : "Mute track"}
-        >
-          {isMuted ? <VolumeX size={16} /> : <Volume size={16} />}
-        </Toggle>
-        <Slider
-          value={isMuted ? [0] : [volume]}
-          min={0}
-          max={100}
-          step={1}
-          onValueChange={handleVolumeChange}
-          disabled={isMuted}
-          className={`${
-            isMuted ? "opacity-50 cursor-not-allowed" : ""
-          } w-20 md:w-24 [&>span:first-child]:h-1.5 [&>span>span]:bg-gradient-to-r [&>span>span]:from-blue-500 [&>span>span]:to-purple-600`}
-          aria-label="Volume slider"
-        />
-        <span className="font-mono text-sm text-gray-300 w-10 text-right">
-          {formatTime(trackDuration ?? 0)}
-        </span>
-        {isOwner && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDelete}
-            aria-label="Delete track"
-            className="h-7 w-7 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-full p-1 flex-shrink-0"
+      <div className="flex items-center justify-between md:justify-start gap-3 md:order-4 flex-shrink-0">
+        <div className="flex md:hidden items-center gap-2 flex-shrink-0">
+          {audioUrl && (
+            <Toggle
+              size="sm"
+              pressed={isPlaying}
+              onPressedChange={togglePlayback}
+              className={`${toggleBaseClasses} ${
+                isPlaying ? toggleActiveClasses : toggleInactiveClasses
+              }`}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            </Toggle>
+          )}
+          <Toggle
+            size="sm"
+            pressed={isLooping}
+            onPressedChange={toggleLoop}
+            className={`${toggleBaseClasses} ${
+              isLooping ? loopToggleActiveClasses : toggleInactiveClasses
+            }`}
+            aria-label="Loop"
           >
-            <Trash2 size={14} />
-          </Button>
-        )}
-        {!isOwner && <div className="h-7 w-7 flex-shrink-0"></div>}
+            <Repeat size={16} />
+          </Toggle>
+        </div>
+
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <Toggle
+            size="sm"
+            pressed={isMuted}
+            onPressedChange={toggleMute}
+            className={`${toggleBaseClasses} ${
+              isMuted ? muteToggleActiveClasses : toggleInactiveClasses
+            }`}
+            aria-label={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted ? <VolumeX size={16} /> : <Volume size={16} />}
+          </Toggle>
+          <Slider
+            value={isMuted ? [0] : [volume]}
+            min={0}
+            max={100}
+            step={1}
+            onValueChange={handleVolumeChange}
+            disabled={isMuted}
+            className={`${
+              isMuted ? "opacity-50 cursor-not-allowed" : ""
+            } w-16 sm:w-20 md:w-24 flex-shrink [&>span:first-child]:h-1.5 [&>span>span]:bg-gradient-to-r [&>span>span]:from-blue-500 [&>span>span]:to-purple-600`}
+            aria-label="Volume"
+          />
+          <span className="font-mono text-sm text-gray-300 w-10 text-right flex-shrink-0">
+            {formatTime(trackDuration ?? 0)}
+          </span>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              aria-label="Delete"
+              className="h-7 w-7 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-full p-1 flex-shrink-0"
+            >
+              <Trash2 size={14} />
+            </Button>
+          )}
+          {!isOwner && <div className="h-7 w-7 flex-shrink-0"></div>}
+        </div>
       </div>
     </div>
   );
