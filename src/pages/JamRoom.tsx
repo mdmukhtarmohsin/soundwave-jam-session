@@ -227,18 +227,49 @@ const JamRoom = () => {
       // if (!window.confirm('Are you sure you want to delete this track?')) return;
 
       try {
+        // --- Add cleanup step FIRST ---
+        console.log(
+          `[handleDeleteTrack] Attempting AudioEngine cleanup for track: ${trackId}`
+        );
+        audioEngine.removeTrack(trackId);
+        console.log(
+          `[handleDeleteTrack] AudioEngine cleanup called for track: ${trackId}`
+        );
+        // -----------------------------
+
         const success = await deleteTrack(trackId, storagePath);
+        console.log(
+          `[handleDeleteTrack] Supabase delete result for ${trackId}: ${success}`
+        );
+
         if (success) {
-          // Remove track from local state for immediate UI update
-          setTracks((prevTracks) => prevTracks.filter((t) => t.id !== trackId));
-          // Optional: Could also call loadTracks() again, but filtering is faster
+          console.log(
+            `[handleDeleteTrack] Updating state to remove track: ${trackId}`
+          );
+          setTracks((prevTracks) => {
+            const updatedTracks = prevTracks.filter((t) => t.id !== trackId);
+            console.log(
+              `[handleDeleteTrack] State update complete. New track count: ${updatedTracks.length}`
+            );
+            return updatedTracks;
+          });
+        } else {
+          console.warn(
+            `[handleDeleteTrack] Supabase delete failed for track: ${trackId}. State not updated.`
+          );
+          // Optionally add a user-facing message here if needed,
+          // although the hook likely showed a toast already.
         }
       } catch (error) {
-        // Error already handled by toast in useSupabase hook
-        console.error("Error during track deletion process:", error);
+        // Log any unexpected errors during the process (e.g., if audioEngine.removeTrack fails)
+        console.error(
+          `[handleDeleteTrack] Unexpected error during deletion process for ${trackId}:`,
+          error
+        );
+        toast.error("An unexpected error occurred while deleting the track.");
       }
     },
-    [deleteTrack]
+    [deleteTrack] // Assuming audioEngine is stable and doesn't need to be in dependency array
   );
   // --- End Handler ---
 

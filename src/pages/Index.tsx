@@ -1,14 +1,25 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Music, Play, Users, Download, Rocket, LogIn } from "lucide-react";
+import {
+  Music,
+  Play,
+  Users,
+  Download,
+  Rocket,
+  LogIn,
+  LayoutDashboard,
+} from "lucide-react";
 import Header from "@/components/Header";
 import WaveformVisualizer from "@/components/WaveformVisualizer";
+import { useAuth } from "@/context/AuthContext";
 
 const Index = () => {
+  const { user } = useAuth();
+
   return (
     <div className="min-h-screen bg-soundboard-dark text-white">
-      <Header />
+      <Header isAuthenticated={!!user} />
 
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-6 relative overflow-hidden">
@@ -30,21 +41,32 @@ const Index = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
-            <Link to="/auth?mode=signup">
-              <Button className="bg-soundboard-primary hover:bg-soundboard-primary/80 text-white px-8 py-6 text-lg rounded-lg transition-transform duration-200 ease-in-out hover:scale-105 flex items-center gap-2">
-                <Rocket size={20} />
-                Get Started
-              </Button>
-            </Link>
-            <Link to="/auth?mode=login">
-              <Button
-                variant="outline"
-                className="border-white/10 hover:bg-white/5 px-8 py-6 text-lg rounded-lg transition-transform duration-200 ease-in-out hover:scale-105 flex items-center gap-2"
-              >
-                <LogIn size={20} />
-                Login
-              </Button>
-            </Link>
+            {user ? (
+              <Link to="/dashboard">
+                <Button className="bg-soundboard-primary hover:bg-soundboard-primary/80 text-white px-8 py-6 text-lg rounded-lg transition-transform duration-200 ease-in-out hover:scale-105 flex items-center gap-2">
+                  <LayoutDashboard size={20} />
+                  Go to Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/auth?mode=signup">
+                  <Button className="bg-soundboard-primary hover:bg-soundboard-primary/80 text-white px-8 py-6 text-lg rounded-lg transition-transform duration-200 ease-in-out hover:scale-105 flex items-center gap-2">
+                    <Rocket size={20} />
+                    Get Started
+                  </Button>
+                </Link>
+                <Link to="/auth?mode=login">
+                  <Button
+                    variant="outline"
+                    className="border-white/10 hover:bg-white/5 px-8 py-6 text-lg rounded-lg transition-transform duration-200 ease-in-out hover:scale-105 flex items-center gap-2"
+                  >
+                    <LogIn size={20} />
+                    Login
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="mt-20 flex justify-center">
@@ -96,11 +118,19 @@ const Index = () => {
           </div>
 
           <div className="text-center mt-16">
-            <Link to="/auth?mode=signup">
-              <Button className="bg-soundboard-primary hover:bg-soundboard-primary/80 text-white">
-                Start Jamming Now
-              </Button>
-            </Link>
+            {user ? (
+              <Link to="/dashboard">
+                <Button className="bg-soundboard-primary hover:bg-soundboard-primary/80 text-white">
+                  Go to Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/auth?mode=signup">
+                <Button className="bg-soundboard-primary hover:bg-soundboard-primary/80 text-white">
+                  Start Jamming Now
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </section>
