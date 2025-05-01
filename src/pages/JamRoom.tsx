@@ -340,10 +340,38 @@ const JamRoom = () => {
                 </>
               )}
               <Badge
-                variant={isPrivate ? "default" : "secondary"}
-                className={isPrivate ? "bg-soundboard-primary" : ""}
+                variant={isPrivate ? "destructive" : "secondary"}
+                className={`text-white text-xs font-medium border ${
+                  isPrivate
+                    ? "bg-red-600/80 border-red-500/50"
+                    : "bg-green-600/80 border-green-500/50"
+                } ${
+                  isHost
+                    ? "cursor-pointer hover:opacity-80 transition-opacity"
+                    : "cursor-default"
+                }`}
+                onClick={isHost ? togglePrivacy : undefined}
+                title={
+                  isHost
+                    ? isPrivate
+                      ? "Click to make public"
+                      : "Click to make private"
+                    : isPrivate
+                    ? "Private Room"
+                    : "Public Room"
+                }
               >
-                {isPrivate ? "Private" : "Public"}
+                {isPrivate ? (
+                  <>
+                    <Lock size={10} className="inline mr-1" />
+                    Private
+                  </>
+                ) : (
+                  <>
+                    <Globe size={10} className="inline mr-1" />
+                    Public
+                  </>
+                )}
               </Badge>
             </div>
           </div>
