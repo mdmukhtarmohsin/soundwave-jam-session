@@ -105,7 +105,6 @@ class AudioEngine {
 
     if (!this.audioContext || !this.masterGain) return;
 
-    // Remove track if it already exists (this now handles disconnection properly)
     this.removeTrack(id);
 
     const audio = new Audio();
@@ -125,13 +124,15 @@ class AudioEngine {
         audio.removeEventListener("durationchange", onDurationChange);
       }
     };
-    // Remove the 'loadedmetadata' listener
-    // audio.addEventListener('loadedmetadata', () => { ... });
     audio.addEventListener("durationchange", onDurationChange);
 
-    audio.addEventListener("ended", () => {
-      this.emit("pause", id);
-    });
+    // --- Ensure ended listener calls check function ---
+    const onEnded = () => {
+      console.log(`[AudioEngine] Track ${id} ended.`);
+      this.emit("pause", id); // Emit pause for individual track state
+      this._checkAllPausedAfterEnded(); // Check if all tracks are now paused
+    };
+    audio.addEventListener("ended", onEnded);
     // --- End event listeners ---
 
     // Create and connect nodes
@@ -141,8 +142,7 @@ class AudioEngine {
     source.connect(gainNode);
     gainNode.connect(this.masterGain);
 
-    // Store all necessary references
-    this.audioStreams.set(id, { audio, gain: gainNode, source }); // Store source node
+    this.audioStreams.set(id, { audio, gain: gainNode, source });
   }
 
   playTrack(id: string): void {
@@ -370,33 +370,53 @@ class AudioEngine {
     this.emit("export_start");
 
     let maxDuration = 0;
-    const sourcesToMix: Array<{ url: string; startTime?: number }> = []; // startTime for potential offset later
+    const validTracksToMix = new Map<
+      string,
+      {
+        audio: HTMLAudioElement;
+        gain: GainNode;
+        source: MediaElementAudioSourceNode;
+      }
+    >();
 
-    // Determine the maximum duration and gather sources
-    this.audioStreams.forEach((trackData) => {
-      if (trackData.audio.duration && isFinite(trackData.audio.duration)) {
-        maxDuration = Math.max(maxDuration, trackData.audio.duration);
-        sourcesToMix.push({ url: trackData.audio.src });
+    // Determine the maximum duration and gather valid sources WITH gain info
+    this.audioStreams.forEach((trackData, id) => {
+      // --- Updated Check ---
+      const duration = trackData.audio.duration;
+      const readyState = trackData.audio.readyState;
+
+      // Check if metadata (duration) is loaded AND duration is valid finite number
+      if (readyState >= 1 && duration && isFinite(duration)) {
+        maxDuration = Math.max(maxDuration, duration);
+        validTracksToMix.set(id, trackData); // Store the whole trackData object
       } else {
         console.warn(
-          `[AudioEngine] Track ${trackData.audio.id} skipped in mixdown (invalid duration: ${trackData.audio.duration})`
+          `[AudioEngine] Track ${id} skipped in mixdown (readyState: ${readyState}, duration: ${duration})`
         );
       }
+      // --- End Updated Check ---
     });
 
-    if (sourcesToMix.length === 0) {
-      console.error("[AudioEngine] No valid tracks found to mix.");
-      this.emit("export_error", new Error("No valid tracks to mix."));
+    if (validTracksToMix.size === 0) {
+      console.error(
+        "[AudioEngine] No valid tracks found to mix (likely not loaded)."
+      );
+      // Emit a more user-friendly error message
+      this.emit(
+        "export_error",
+        new Error("Please play tracks once before exporting.")
+      );
       return null;
     }
     if (maxDuration === 0) {
       console.error("[AudioEngine] Max duration is 0, cannot create mix.");
+      // Keep this error more technical, as it's a different issue
       this.emit("export_error", new Error("Cannot determine mix duration."));
       return null;
     }
 
     console.log(
-      `[AudioEngine] Determined max duration: ${maxDuration} seconds. Mixing ${sourcesToMix.length} tracks.`
+      `[AudioEngine] Determined max duration: ${maxDuration} seconds. Mixing ${validTracksToMix.size} tracks.`
     );
 
     try {
@@ -407,33 +427,47 @@ class AudioEngine {
         this.audioContext.sampleRate
       );
 
-      const promises = sourcesToMix.map(async (sourceInfo) => {
-        try {
-          const response = await fetch(sourceInfo.url);
-          if (!response.ok) {
-            throw new Error(
-              `Failed to fetch ${sourceInfo.url}: ${response.statusText}`
-            );
-          }
-          const arrayBuffer = await response.arrayBuffer();
-          const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+      // Process each valid track
+      const promises = Array.from(validTracksToMix.entries()).map(
+        async ([id, trackData]) => {
+          try {
+            const response = await fetch(trackData.audio.src);
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch ${trackData.audio.src}: ${response.statusText}`
+              );
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
 
-          const bufferSource = offlineCtx.createBufferSource();
-          bufferSource.buffer = audioBuffer;
-          bufferSource.connect(offlineCtx.destination);
-          bufferSource.start(0); // Start all tracks at time 0 for now
-        } catch (decodeError) {
-          console.error(
-            `[AudioEngine] Error decoding audio data for ${sourceInfo.url}:`,
-            decodeError
-          );
-          // Decide how to handle tracks that fail to load/decode
-          // Option 1: Throw and fail the whole mix
-          throw new Error(`Failed to process track: ${sourceInfo.url}`);
-          // Option 2: Skip this track and continue (might result in incomplete mix)
-          // return Promise.resolve(); // Or just don't throw
+            // Create nodes within the OfflineAudioContext
+            const bufferSource = offlineCtx.createBufferSource();
+            bufferSource.buffer = audioBuffer;
+
+            // --- Apply Gain ---
+            const offlineGainNode = offlineCtx.createGain();
+            offlineGainNode.gain.value = trackData.gain.gain.value; // Apply current gain value
+            console.log(
+              `[AudioEngine Mix] Applying gain ${offlineGainNode.gain.value.toFixed(
+                2
+              )} to track ${id}`
+            );
+
+            // Connect nodes: bufferSource -> offlineGainNode -> destination
+            bufferSource.connect(offlineGainNode);
+            offlineGainNode.connect(offlineCtx.destination);
+            // --- End Gain ---
+
+            bufferSource.start(0); // Start track at time 0
+          } catch (processError) {
+            console.error(
+              `[AudioEngine] Error processing track ${id} (${trackData.audio.src}) for mixdown:`,
+              processError
+            );
+            throw new Error(`Failed to process track: ${id}`);
+          }
         }
-      });
+      );
 
       await Promise.all(promises);
       console.log("[AudioEngine] All tracks decoded and scheduled for mixing.");
@@ -512,6 +546,27 @@ class AudioEngine {
       pos += 4;
     }
   }
+
+  // --- Ensure private check method exists and emits event ---
+  private _checkAllPausedAfterEnded(): void {
+    setTimeout(() => {
+      if (this.audioStreams.size === 0) return;
+      let allPaused = true;
+      for (const trackData of this.audioStreams.values()) {
+        if (!trackData.audio || !trackData.audio.paused) {
+          allPaused = false;
+          break;
+        }
+      }
+      if (allPaused) {
+        console.log(
+          "[AudioEngine] All tracks confirmed paused after ended event(s). Emitting all_tracks_ended."
+        );
+        this.emit("all_tracks_ended");
+      }
+    }, 0);
+  }
+  // --- End private method ---
 }
 
 export const audioEngine = new AudioEngine();

@@ -414,11 +414,13 @@ const JamRoom = () => {
         mixAudioRef.current.load();
       }
       console.error("Export failed:", error);
-      toast.error(
-        `Export failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+
+      // Display the specific error message from the engine
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "An unknown error occurred during export.";
+      toast.error(`Export failed: ${errorMessage}`);
     };
 
     // Define event handlers separately for clarity and easier removal
@@ -618,6 +620,28 @@ const JamRoom = () => {
     }
   };
   // --- End Handler ---
+
+  // --- Add Effect for listening to all_tracks_ended ---
+  useEffect(() => {
+    console.log("[JamRoom Effect] Setting up listener for all_tracks_ended.");
+
+    const handleAllTracksEnded = () => {
+      console.log(
+        "[JamRoom] Received all_tracks_ended event. Setting isPlaying to false."
+      );
+      setIsPlaying(false); // Reset the main playback button state
+    };
+
+    audioEngine.on("all_tracks_ended", handleAllTracksEnded);
+
+    return () => {
+      console.log(
+        "[JamRoom Effect Cleanup] Unregistering all_tracks_ended listener."
+      );
+      audioEngine.off("all_tracks_ended", handleAllTracksEnded);
+    };
+  }, []); // Empty dependency array: run once on mount/unmount
+  // --- End Effect ---
 
   if (isLoadingRoom) {
     return (
