@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
-import { User, Clock, Play, Pause, Repeat, Trash2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import {
+  User,
+  Clock,
+  Play,
+  Pause,
+  Repeat,
+  Trash2,
+  Volume,
+  VolumeX,
+} from "lucide-react";
 import WaveformVisualizer from "./WaveformVisualizer";
 import { audioEngine } from "@/services/AudioEngine";
 import { formatDistanceToNow } from "date-fns";
@@ -25,6 +35,8 @@ interface TrackItemProps {
   storagePath?: string | null;
   timestamp: string;
   audioUrl?: string;
+  onVolumeChange: (id: string, volume: number) => void;
+  onToggleMute: (id: string, muted: boolean) => void;
   onDelete: (trackId: string, storagePath?: string | null) => void;
 }
 
@@ -36,9 +48,13 @@ const TrackItem: React.FC<TrackItemProps> = ({
   storagePath,
   timestamp,
   audioUrl,
+  onVolumeChange,
+  onToggleMute,
   onDelete,
 }) => {
   const { user } = useAuth();
+  const [volume, setVolume] = useState(75);
+  const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [trackDuration, setTrackDuration] = useState<number | null>(null);
@@ -48,7 +64,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
 
   useEffect(() => {
     if (audioUrl && !isLoaded) {
-      audioEngine.addTrack(id, audioUrl);
+      audioEngine.addTrack(id, audioUrl, volume);
       setIsLoaded(true);
     }
 
@@ -73,6 +89,20 @@ const TrackItem: React.FC<TrackItemProps> = ({
       if (isLoaded) audioEngine.removeTrack(id);
     };
   }, [id, audioUrl, isLoaded]);
+
+  const handleVolumeChange = (value: number[]) => {
+    const newVolume = value[0];
+    setVolume(newVolume);
+    audioEngine.setTrackVolume(id, newVolume);
+    onVolumeChange(id, newVolume);
+  };
+
+  const toggleMute = () => {
+    const newMuteState = !isMuted;
+    setIsMuted(newMuteState);
+    audioEngine.setTrackVolume(id, newMuteState ? 0 : volume);
+    onToggleMute(id, newMuteState);
+  };
 
   const togglePlayback = () => {
     if (!audioUrl) return;
@@ -105,6 +135,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
   const toggleActiveClasses =
     "bg-soundboard-primary hover:bg-soundboard-primary/80";
   const loopToggleActiveClasses = "bg-purple-600 hover:bg-purple-700";
+  const muteToggleActiveClasses = "bg-red-600 hover:bg-red-700";
 
   return (
     <div className="bg-gray-800/60 border border-gray-700/80 rounded-lg p-4 flex items-center justify-between gap-4 shadow-sm hover:border-gray-600/90 transition-colors">
@@ -159,12 +190,38 @@ const TrackItem: React.FC<TrackItemProps> = ({
       </div>
 
       {audioUrl && (
-        <div className="flex-1 h-10 mx-2 min-w-[100px] max-w-[300px]">
+        <div className="h-10 w-32 md:w-48 lg:w-64 mx-2 flex-shrink-0">
           <WaveformVisualizer isAnimated={isPlaying} height="h-full" />
         </div>
       )}
+      {!audioUrl && (
+        <div className="h-10 w-32 md:w-48 lg:w-64 mx-2 flex-shrink-0"></div>
+      )}
 
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <Toggle
+          size="sm"
+          pressed={isMuted}
+          onPressedChange={toggleMute}
+          className={`${toggleBaseClasses} ${
+            isMuted ? muteToggleActiveClasses : toggleInactiveClasses
+          }`}
+          aria-label={isMuted ? "Unmute track" : "Mute track"}
+        >
+          {isMuted ? <VolumeX size={16} /> : <Volume size={16} />}
+        </Toggle>
+        <Slider
+          value={isMuted ? [0] : [volume]}
+          min={0}
+          max={100}
+          step={1}
+          onValueChange={handleVolumeChange}
+          disabled={isMuted}
+          className={`${
+            isMuted ? "opacity-50 cursor-not-allowed" : ""
+          } w-20 md:w-24 [&>span:first-child]:h-1.5 [&>span>span]:bg-gradient-to-r [&>span>span]:from-blue-500 [&>span>span]:to-purple-600`}
+          aria-label="Volume slider"
+        />
         <span className="font-mono text-sm text-gray-300 w-10 text-right">
           {formatTime(trackDuration ?? 0)}
         </span>

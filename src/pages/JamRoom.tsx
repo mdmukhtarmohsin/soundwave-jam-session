@@ -309,17 +309,17 @@ const JamRoom = () => {
       <div className="max-w-screen-xl mx-auto px-4 pt-24 pb-16 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
         {/* --- Left Column --- */}
         <div className="md:col-span-1 space-y-6">
-          {/* Room Info Card */}
-          <div className={cardClasses}>
-            <div className="flex justify-between items-start mb-3">
-              {/* Simple Title Display */}
+          {/* Room Info Card - Reimagined Layout */}
+          <div className={`${cardClasses} flex flex-col`}>
+            {/* Top Row: Title & Privacy */}
+            <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
               <h1
                 className="text-xl font-semibold truncate pr-2"
                 title={roomTitle}
               >
                 {roomTitle}
               </h1>
-              {/* Privacy Badge (Clickable) */}
+              {/* Clickable Privacy Badge */}
               <Badge
                 variant={isPrivate ? "destructive" : "secondary"}
                 className={`text-white text-xs font-medium border ${
@@ -330,7 +330,7 @@ const JamRoom = () => {
                   isHost
                     ? "cursor-pointer hover:opacity-80 transition-opacity"
                     : "cursor-default"
-                }`}
+                } rounded-md px-2.5 py-1 shadow-sm`}
                 onClick={isHost ? togglePrivacy : undefined}
                 title={
                   isHost
@@ -344,59 +344,59 @@ const JamRoom = () => {
               >
                 {isPrivate ? (
                   <>
-                    <Lock size={10} className="inline mr-1" />
+                    <Lock size={12} className="inline mr-1.5" />
                     Private
                   </>
                 ) : (
                   <>
-                    <Globe size={10} className="inline mr-1" />
+                    <Globe size={12} className="inline mr-1.5" />
                     Public
                   </>
                 )}
               </Badge>
             </div>
-            {/* BPM/Key Badges */}
-            <div className="flex items-center gap-2 flex-wrap mb-4">
-              <Badge
-                variant="secondary"
-                className="bg-black/50 text-white/80 border-white/10 text-xs"
-              >
-                {jamRoom?.bpm} BPM
-              </Badge>
-              <Badge
-                variant="secondary"
-                className="bg-black/50 text-white/80 border-white/10 text-xs"
-              >
-                {jamRoom?.key}
-              </Badge>
-            </div>
-            {/* Code & Share Row */}
-            <div className="flex items-center justify-between gap-2 bg-black/30 border border-white/10 px-3 py-1.5 rounded-md">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-white/60">Code:</span>
-                <code className="font-mono text-sm text-white">{id}</code>
+
+            {/* Middle Row: Metadata (BPM/Key) & Actions */}
+            <div className="flex justify-between items-center gap-4">
+              {/* Left: BPM/Key */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge
+                  variant="secondary"
+                  className="bg-gray-700/60 text-gray-300 border-gray-600/80 text-xs font-normal px-2 py-0.5 rounded"
+                >
+                  {jamRoom?.bpm} BPM
+                </Badge>
+                <Badge
+                  variant="secondary"
+                  className="bg-gray-700/60 text-gray-300 border-gray-600/80 text-xs font-normal px-2 py-0.5 rounded"
+                >
+                  {jamRoom?.key}
+                </Badge>
               </div>
-              <div className="flex items-center gap-1">
+              {/* Right: Action Buttons */}
+              <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-white/60 hover:text-white hover:bg-white/5"
+                  className="bg-gray-700/50 hover:bg-gray-600/80 text-gray-300 hover:text-white h-8 w-8 rounded-md p-1.5 border border-gray-600/80"
                   onClick={copyRoomCode}
                   aria-label="Copy room code"
+                  title="Copy Room Code"
                 >
-                  <Copy size={14} />
+                  <Copy size={16} />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-white/60 hover:text-white hover:bg-white/5"
+                  className="bg-gray-700/50 hover:bg-gray-600/80 text-gray-300 hover:text-white h-8 w-8 rounded-md p-1.5 border border-gray-600/80"
                   onClick={() => {
                     navigator.clipboard.writeText(window.location.href);
                     toast("Link copied");
                   }}
                   aria-label="Copy room link"
+                  title="Copy Share Link"
                 >
-                  <Share size={14} />
+                  <Share size={16} />
                 </Button>
               </div>
             </div>
