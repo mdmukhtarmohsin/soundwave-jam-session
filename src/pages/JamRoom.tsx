@@ -17,6 +17,7 @@ import {
   Loader2,
   PlayCircle,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 import Header from "@/components/Header";
 import Recorder from "@/components/Recorder";
@@ -45,6 +46,7 @@ const JamRoom = () => {
     getTracksByJamRoomId,
     uploadTrack,
     deleteTrack,
+    deleteJamRoom,
   } = useSupabase();
 
   const [jamRoom, setJamRoom] = useState<JamRoomType | null>(null);
@@ -61,6 +63,7 @@ const JamRoom = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [mixedAudioUrl, setMixedAudioUrl] = useState<string | null>(null);
   const [isPlayingMix, setIsPlayingMix] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const mixAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -581,6 +584,41 @@ const JamRoom = () => {
 
   // --- End Updated Export Handling ---
 
+  // --- Add Handler for Deleting Room ---
+  const handleDeleteRoom = async () => {
+    if (!isHost || !id || isDeleting) return; // Only host can delete, prevent double clicks
+
+    if (
+      window.confirm(
+        "Are you sure you want to permanently delete this Jam Room and all its tracks? This cannot be undone."
+      )
+    ) {
+      setIsDeleting(true);
+      try {
+        const success = await deleteJamRoom(id);
+        if (success) {
+          toast.success("Jam Room deleted.");
+          navigate("/dashboard"); // Redirect to dashboard after successful deletion
+        } else {
+          // Error toast is likely shown by the hook already
+          console.warn(
+            `[JamRoom] Delete failed for room ${id} (hook returned false).`
+          );
+          setIsDeleting(false); // Re-enable button if delete failed
+        }
+      } catch (error) {
+        console.error(
+          `[JamRoom] Unexpected error during room deletion ${id}:`,
+          error
+        );
+        toast.error("An unexpected error occurred while deleting the room.");
+        setIsDeleting(false); // Re-enable button on unexpected error
+      }
+      // No finally block needed for setIsDeleting here, only reset on failure
+    }
+  };
+  // --- End Handler ---
+
   if (isLoadingRoom) {
     return (
       <div className="min-h-screen bg-soundboard-dark text-white flex items-center justify-center">
@@ -691,6 +729,23 @@ const JamRoom = () => {
                 >
                   <Share size={16} />
                 </Button>
+                {isHost && (
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="bg-red-800/70 hover:bg-red-700/90 border border-red-600/80 text-red-100 hover:text-white h-8 w-8 rounded-md p-1.5"
+                    onClick={handleDeleteRoom}
+                    disabled={isDeleting}
+                    aria-label="Delete room"
+                    title="Delete Room Permanently"
+                  >
+                    {isDeleting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>

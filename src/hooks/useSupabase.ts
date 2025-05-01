@@ -111,17 +111,115 @@ export function useSupabase() {
     }
   };
 
-  const deleteJamRoom = async (id: string) => {
+  const deleteJamRoom = async (roomId: string) => {
+    console.log(`[useSupabase] Attempting to delete room: ${roomId}`);
+    setLoading(true);
     try {
-      setLoading(true);
+      // 1. Fetch all tracks in the room to get storage paths
+      console.log(`[useSupabase] Fetching tracks for room ${roomId}...`);
+      const { data: tracksToDelete, error: fetchError } = await supabase
+        .from("tracks")
+        .select("id, storage_path")
+        .eq("jam_room_id", roomId);
 
-      const { error } = await supabase.from("jam_rooms").delete().eq("id", id);
+      if (fetchError) {
+        console.error(
+          `[useSupabase] Error fetching tracks for room ${roomId}:`,
+          fetchError
+        );
+        throw new Error("Could not fetch room tracks to delete.");
+      }
+      console.log(
+        `[useSupabase] Found ${
+          tracksToDelete?.length || 0
+        } tracks for room ${roomId}.`
+      );
 
-      if (error) throw error;
+      // 2. Delete associated audio files from storage
+      const storagePathsToDelete = tracksToDelete
+        ?.map((t) => t.storage_path)
+        .filter((p): p is string => !!p); // Filter out null/undefined paths
 
+      if (storagePathsToDelete && storagePathsToDelete.length > 0) {
+        console.log(
+          `[useSupabase] Deleting ${storagePathsToDelete.length} audio files from storage...`,
+          storagePathsToDelete
+        );
+        const { error: storageError } = await supabase.storage
+          .from("audio")
+          .remove(storagePathsToDelete);
+
+        if (storageError) {
+          // Log storage error but proceed with DB deletion
+          console.warn(
+            `[useSupabase] Failed to delete some/all audio files from storage for room ${roomId}:`,
+            storageError
+          );
+          toast.warning(
+            "Room deleted, but failed to clear some storage files."
+          );
+        } else {
+          console.log(
+            `[useSupabase] Successfully deleted audio files from storage.`
+          );
+        }
+      } else {
+        console.log(
+          `[useSupabase] No storage files to delete for room ${roomId}.`
+        );
+      }
+
+      // 3. Delete track records from the database
+      // This assumes RLS allows the host to delete tracks in their room
+      if (tracksToDelete && tracksToDelete.length > 0) {
+        console.log(
+          `[useSupabase] Deleting ${tracksToDelete.length} track records from database...`
+        );
+        const { error: trackDeleteError } = await supabase
+          .from("tracks")
+          .delete()
+          .eq("jam_room_id", roomId);
+
+        if (trackDeleteError) {
+          console.error(
+            `[useSupabase] Error deleting track records for room ${roomId}:`,
+            trackDeleteError
+          );
+          throw new Error("Could not delete associated track records.");
+        } else {
+          console.log(`[useSupabase] Successfully deleted track records.`);
+        }
+      }
+
+      // 4. Delete the jam room record itself
+      // This assumes RLS allows the host to delete their own room
+      console.log(`[useSupabase] Deleting jam_rooms record for ${roomId}...`);
+      const { error: roomDeleteError } = await supabase
+        .from("jam_rooms")
+        .delete()
+        .eq("id", roomId);
+
+      if (roomDeleteError) {
+        console.error(
+          `[useSupabase] Error deleting jam_rooms record ${roomId}:`,
+          roomDeleteError
+        );
+        throw roomDeleteError;
+      }
+      console.log(
+        `[useSupabase] Successfully deleted jam_rooms record ${roomId}.`
+      );
+
+      toast.success("Jam Room deleted successfully");
       return true;
     } catch (error: any) {
-      toast.error("Failed to delete jam room: " + error.message);
+      console.error(
+        `[useSupabase] Failed to delete jam room ${roomId}:`,
+        error
+      );
+      toast.error(
+        `Failed to delete jam room: ${error.message || "Unknown error"}`
+      );
       return false;
     } finally {
       setLoading(false);
