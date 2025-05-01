@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from '@/components/ui/sonner';
 import { Music } from 'lucide-react';
 import Header from '@/components/Header';
+import { supabase } from '@/integrations/supabase/client';
 
 type AuthMode = 'login' | 'signup';
 
@@ -20,30 +21,101 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const urlMode = searchParams.get('mode') as AuthMode;
     if (urlMode && (urlMode === 'login' || urlMode === 'signup')) {
       setMode(urlMode);
     }
-  }, [searchParams]);
+    
+    // Check if user is already logged in
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        navigate('/dashboard');
+      }
+    };
+    
+    checkSession();
+  }, [searchParams, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Set up auth state change listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session) {
+          navigate('/dashboard');
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
     
-    // Simulate authentication
-    setTimeout(() => {
+    try {
+      if (mode === 'signup') {
+        // Sign up the user
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: name || email.split('@')[0],
+            }
+          }
+        });
+        
+        if (error) throw error;
+        
+        toast.success('Account created successfully! Please verify your email.');
+      } else {
+        // Log in the user
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        
+        if (error) throw error;
+        
+        toast.success('Logged in successfully!');
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      console.error('Authentication error:', error);
+      setError(error.message || 'An error occurred during authentication');
+      toast.error(error.message || 'Authentication failed');
+    } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`
+        }
+      });
       
-      // This is where we'd handle actual authentication
-      toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created successfully!');
-      navigate('/dashboard');
-    }, 1500);
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('OAuth error:', error);
+      toast.error(error.message || 'Failed to authenticate with provider');
+    }
   };
 
   const toggleMode = () => {
     setMode(mode === 'login' ? 'signup' : 'login');
+    setError(null);
   };
 
   return (
@@ -69,6 +141,12 @@ const Auth = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-md text-white text-sm">
+                  {error}
+                </div>
+              )}
+              
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === 'signup' && (
                   <div className="space-y-2">
@@ -78,7 +156,6 @@ const Auth = () => {
                       placeholder="Your name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      required
                       className="bg-black/40 border-white/10 text-white placeholder:text-white/40"
                     />
                   </div>
@@ -127,10 +204,18 @@ const Auth = () => {
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="border-white/10 hover:bg-white/5">
+                <Button 
+                  variant="outline" 
+                  className="border-white/10 hover:bg-white/5"
+                  onClick={() => handleOAuthLogin('google')}
+                >
                   Google
                 </Button>
-                <Button variant="outline" className="border-white/10 hover:bg-white/5">
+                <Button 
+                  variant="outline" 
+                  className="border-white/10 hover:bg-white/5"
+                  onClick={() => handleOAuthLogin('github')}
+                >
                   GitHub
                 </Button>
               </div>
