@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,9 @@ import {
   Pause,
   Mic,
   Download,
+  Loader2,
+  PlayCircle,
+  RefreshCcw,
 } from "lucide-react";
 import Header from "@/components/Header";
 import Recorder from "@/components/Recorder";
@@ -55,6 +58,11 @@ const JamRoom = () => {
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [mixedAudioUrl, setMixedAudioUrl] = useState<string | null>(null);
+  const [isPlayingMix, setIsPlayingMix] = useState(false);
+
+  const mixAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Load jam room data
   useEffect(() => {
@@ -288,6 +296,260 @@ const JamRoom = () => {
   };
   // --- End export handlers ---
 
+  // Effect for AudioEngine event listeners - runs once on mount/unmount
+  useEffect(() => {
+    console.log("[JamRoom Effect] Setting up AudioEngine listeners.");
+
+    const handleExportStart = () => {
+      console.log("[JamRoom] handleExportStart triggered.");
+      setIsExporting(true);
+      // Clear previous state and stop playback
+      setMixedAudioUrl(null);
+      setIsPlayingMix(false);
+      if (mixAudioRef.current) {
+        console.log(
+          "[JamRoom handleExportStart] Pausing and clearing existing mix audio."
+        );
+        mixAudioRef.current.pause();
+        mixAudioRef.current.removeAttribute("src"); // More reliable than src = ""
+        mixAudioRef.current.load(); // Reset element state
+      }
+      // Revoke previous URL if it exists
+      const previousUrl = mixedAudioUrl; // Capture current value before state update
+      if (previousUrl) {
+        console.log(
+          `[JamRoom handleExportStart] Revoking previous Object URL: ${previousUrl}`
+        );
+        URL.revokeObjectURL(previousUrl);
+      }
+    };
+
+    const handleExportComplete = (data: { blob: Blob; url: string } | null) => {
+      console.log("[JamRoom] handleExportComplete triggered.");
+      setIsExporting(false);
+      if (data?.url) {
+        setMixedAudioUrl(data.url); // Set state for UI updates
+        toast.success("Mix ready!");
+        console.log(
+          `[JamRoom handleExportComplete] Mix ready. URL: ${data.url}`
+        );
+
+        // Ensure audio element exists and listeners are attached
+        if (!mixAudioRef.current) {
+          console.log(
+            "[JamRoom handleExportComplete] Creating new Audio element."
+          );
+          mixAudioRef.current = new Audio();
+          // Attach listeners only once when element is created
+          mixAudioRef.current.addEventListener("ended", handleMixEnded);
+          mixAudioRef.current.addEventListener("pause", handleMixPaused);
+          mixAudioRef.current.addEventListener("play", handleMixPlayed);
+          mixAudioRef.current.addEventListener("playing", handleMixPlaying);
+          mixAudioRef.current.addEventListener("error", handleMixError);
+          mixAudioRef.current.addEventListener("canplay", handleMixCanPlay);
+          mixAudioRef.current.addEventListener("loadstart", handleMixLoadStart);
+          mixAudioRef.current.addEventListener(
+            "loadeddata",
+            handleMixLoadedData
+          );
+        }
+
+        console.log(
+          `[JamRoom handleExportComplete] Setting mix audio src: ${data.url}`
+        );
+        mixAudioRef.current.src = data.url;
+        console.log(`[JamRoom handleExportComplete] Calling mix audio load()`);
+        mixAudioRef.current.load(); // Load the new source
+      } else {
+        toast.error("Mix generation failed.");
+        setMixedAudioUrl(null);
+        console.log(
+          "[JamRoom handleExportComplete] Mix generation reported failed by AudioEngine."
+        );
+      }
+    };
+
+    const handleExportError = (error: any) => {
+      console.log("[JamRoom] handleExportError triggered.");
+      setIsExporting(false);
+      setMixedAudioUrl(null);
+      setIsPlayingMix(false);
+      if (mixAudioRef.current) {
+        mixAudioRef.current.pause();
+        mixAudioRef.current.removeAttribute("src");
+        mixAudioRef.current.load();
+      }
+      console.error("Export failed:", error);
+      toast.error(
+        `Export failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    };
+
+    // Define event handlers separately for clarity and easier removal
+    const handleMixEnded = () => {
+      console.log("[JamRoom MixAudio] Event: ended");
+      setIsPlayingMix(false);
+    };
+    const handleMixPaused = () => {
+      console.log("[JamRoom MixAudio] Event: pause");
+      setIsPlayingMix(false);
+    };
+    const handleMixPlayed = () => {
+      console.log("[JamRoom MixAudio] Event: play");
+      setIsPlayingMix(true);
+    };
+    const handleMixPlaying = () => {
+      console.log("[JamRoom MixAudio] Event: playing");
+      setIsPlayingMix(true);
+    };
+    const handleMixError = (e: Event) => {
+      console.error(
+        "[JamRoom MixAudio] Event: error",
+        e,
+        mixAudioRef.current?.error
+      );
+      setIsPlayingMix(false);
+      toast.error("Error playing mix.");
+    };
+    const handleMixCanPlay = () => {
+      console.log("[JamRoom MixAudio] Event: canplay");
+    };
+    const handleMixLoadStart = () => {
+      console.log("[JamRoom MixAudio] Event: loadstart");
+    };
+    const handleMixLoadedData = () => {
+      console.log("[JamRoom MixAudio] Event: loadeddata");
+    };
+
+    // Register AudioEngine listeners
+    audioEngine.on("export_start", handleExportStart);
+    audioEngine.on("export_complete", handleExportComplete);
+    audioEngine.on("export_error", handleExportError);
+
+    // Cleanup function for component unmount
+    return () => {
+      console.log(
+        "[JamRoom Effect Cleanup] Unregistering AudioEngine listeners and cleaning up mix audio."
+      );
+      // Unregister AudioEngine listeners
+      audioEngine.off("export_start", handleExportStart);
+      audioEngine.off("export_complete", handleExportComplete);
+      audioEngine.off("export_error", handleExportError);
+
+      // Cleanup mix audio element and listeners
+      if (mixAudioRef.current) {
+        console.log(
+          "[JamRoom Effect Cleanup] Pausing, removing listeners, and nullifying mix audio ref."
+        );
+        mixAudioRef.current.pause();
+        mixAudioRef.current.removeEventListener("ended", handleMixEnded);
+        mixAudioRef.current.removeEventListener("pause", handleMixPaused);
+        mixAudioRef.current.removeEventListener("play", handleMixPlayed);
+        mixAudioRef.current.removeEventListener("playing", handleMixPlaying);
+        mixAudioRef.current.removeEventListener("error", handleMixError);
+        mixAudioRef.current.removeEventListener("canplay", handleMixCanPlay);
+        mixAudioRef.current.removeEventListener(
+          "loadstart",
+          handleMixLoadStart
+        );
+        mixAudioRef.current.removeEventListener(
+          "loadeddata",
+          handleMixLoadedData
+        );
+        mixAudioRef.current.removeAttribute("src");
+        mixAudioRef.current.load(); // Reset
+        mixAudioRef.current = null;
+      }
+
+      // Revoke object URL using the state variable at the time of cleanup
+      const finalUrl = mixedAudioUrl;
+      if (finalUrl) {
+        console.log(
+          `[JamRoom Effect Cleanup] Revoking Object URL: ${finalUrl}`
+        );
+        URL.revokeObjectURL(finalUrl);
+      }
+    };
+  }, []); // <-- EMPHASIS: Empty dependency array
+
+  // --- Updated Export Handling ---
+
+  const handleExport = async () => {
+    if (isExporting) return;
+    try {
+      await audioEngine.mixAndExportTracks();
+    } catch (error) {
+      console.error("Error initiating export:", error);
+      toast.error("Could not start export.");
+      setIsExporting(false);
+      setMixedAudioUrl(null);
+    }
+  };
+
+  const togglePlayMix = () => {
+    console.log("[JamRoom] togglePlayMix called.");
+    if (!mixAudioRef.current) {
+      console.warn(
+        "[JamRoom] togglePlayMix: mixAudioRef is null! Cannot play/pause."
+      );
+      return;
+    }
+    // Log current state before action
+    console.log(
+      `[JamRoom] togglePlayMix: isPlayingMix=${isPlayingMix}, audio.src=${mixAudioRef.current.src}, audio.readyState=${mixAudioRef.current.readyState}, audio.paused=${mixAudioRef.current.paused}`
+    );
+
+    if (isPlayingMix || !mixAudioRef.current.paused) {
+      console.log("[JamRoom] togglePlayMix: Attempting to pause...");
+      mixAudioRef.current.pause();
+    } else {
+      console.log("[JamRoom] togglePlayMix: Attempting to play...");
+      mixAudioRef.current
+        .play()
+        .then(() =>
+          console.log("[JamRoom] togglePlayMix: play() promise resolved.")
+        )
+        .catch((err) => {
+          console.error(
+            "[JamRoom] togglePlayMix: play() promise rejected:",
+            err
+          );
+          toast.error(`Could not play mix: ${err.message}`);
+          setIsPlayingMix(false);
+        });
+    }
+    // State updates (setIsPlayingMix) are handled by the event listeners attached in useEffect
+  };
+
+  const downloadMix = () => {
+    if (!mixedAudioUrl || !jamRoom) return;
+    const fileName = `${jamRoom.title.replace(/\s+/g, "_")}_mix.wav`;
+    const a = document.createElement("a");
+    document.body.appendChild(a);
+    a.style.display = "none";
+    a.href = mixedAudioUrl;
+    a.download = fileName;
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleMixAgain = () => {
+    if (mixedAudioUrl) {
+      URL.revokeObjectURL(mixedAudioUrl);
+    }
+    setMixedAudioUrl(null);
+    setIsPlayingMix(false);
+    if (mixAudioRef.current) {
+      mixAudioRef.current.pause();
+      mixAudioRef.current.src = "";
+    }
+    handleExport();
+  };
+
+  // --- End Updated Export Handling ---
+
   if (isLoadingRoom) {
     return (
       <div className="min-h-screen bg-soundboard-dark text-white flex items-center justify-center">
@@ -475,40 +737,59 @@ const JamRoom = () => {
               </Button>
 
               {/* Export Button Area - Combined Logic */}
-              {exportReady ? (
-                // Show Download button when ready
-                <Button
-                  className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
-                  onClick={downloadMixdown}
-                >
-                  <Download size={16} />
-                  <span>Download Mix</span>
-                </Button>
-              ) : (
-                // Show Export button otherwise
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto bg-gray-700/50 border-gray-600 hover:bg-gray-600/80 text-white/80 hover:text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={exportMixdown}
-                  disabled={isProcessingExport}
-                >
-                  {isProcessingExport ? (
-                    <>
-                      <WaveformVisualizer
-                        height="h-4"
-                        className="w-10 mr-1"
-                        isAnimated={true}
-                      />
-                      <span>Processing...</span>
-                    </>
-                  ) : (
-                    <>
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                {isExporting ? (
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto bg-gray-700/50 border-gray-600 text-white/80 flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md disabled:opacity-100 cursor-default"
+                    disabled
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Mixing...</span>
+                  </Button>
+                ) : mixedAudioUrl ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto bg-green-700/80 border-green-600 hover:bg-green-600/90 text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
+                      onClick={togglePlayMix}
+                    >
+                      {isPlayingMix ? (
+                        <Pause size={16} />
+                      ) : (
+                        <PlayCircle size={16} />
+                      )}
+                      <span>{isPlayingMix ? "Pause Mix" : "Play Mix"}</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto bg-blue-700/80 border-blue-600 hover:bg-blue-600/90 text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
+                      onClick={downloadMix}
+                    >
                       <Download size={16} />
-                      <span>Export Mix</span>
-                    </>
-                  )}
-                </Button>
-              )}
+                      <span>Download</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto bg-gray-700/50 border-gray-600 hover:bg-gray-600/80 text-white/80 hover:text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
+                      onClick={handleMixAgain}
+                    >
+                      <RefreshCcw size={16} />
+                      <span>Mix Again</span>
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto bg-gray-700/50 border-gray-600 hover:bg-gray-600/80 text-white/80 hover:text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
+                    onClick={handleExport}
+                    disabled={tracks.length === 0}
+                  >
+                    <Download size={16} />
+                    <span>Export Mix</span>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
           {/* --- End Global Controls Card --- */}

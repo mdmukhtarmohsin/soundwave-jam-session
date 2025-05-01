@@ -232,8 +232,13 @@ class AudioEngine {
     const track = this.audioStreams.get(id);
     if (track) {
       track.audio.pause();
-      track.audio.src = "";
+      // Disconnect nodes to release resources
+      const source = this.audioContext?.createMediaElementSource(track.audio); // Need to recreate source to disconnect? Maybe store it?
+      source?.disconnect(); // Disconnect from gain
+      track.gain.disconnect(); // Disconnect from masterGain
+      track.audio.src = ""; // Release the audio file reference
       this.audioStreams.delete(id);
+      console.log(`[AudioEngine] Track ${id} removed and cleaned up.`);
     }
   }
 
@@ -326,6 +331,175 @@ class AudioEngine {
     }
   }
   // --- End setTrackLooping method ---
+
+  // --- New Export Functionality ---
+
+  async mixAndExportTracks(): Promise<{ blob: Blob; url: string } | null> {
+    if (!this.audioContext) {
+      console.error("AudioContext not initialized.");
+      alert("Audio engine not ready. Please interact with the page first.");
+      this.emit("export_error", "AudioContext not initialized");
+      return null;
+    }
+    if (this.audioStreams.size === 0) {
+      console.warn("No tracks to export.");
+      alert("There are no tracks to export.");
+      this.emit("export_error", "No tracks to export");
+      return null;
+    }
+
+    console.log("Starting mixdown export...");
+    this.emit("export_start");
+
+    try {
+      const trackDataPromises = Array.from(this.audioStreams.entries()).map(
+        async ([id, { audio, gain }]) => {
+          if (!audio.src) {
+            console.warn(`Track ${id} has no source URL, skipping.`);
+            return null;
+          }
+          try {
+            const response = await fetch(audio.src);
+            if (!response.ok)
+              throw new Error(
+                `Failed to fetch ${audio.src}: ${response.statusText}`
+              );
+            const arrayBuffer = await response.arrayBuffer();
+            const decodedBuffer = await this.audioContext.decodeAudioData(
+              arrayBuffer
+            );
+            return { buffer: decodedBuffer, gainValue: gain.gain.value, id };
+          } catch (error) {
+            console.error(
+              `Error processing track ${id} (${audio.src}):`,
+              error
+            );
+            return null;
+          }
+        }
+      );
+      const trackDataArray = (await Promise.all(trackDataPromises)).filter(
+        (data) => data !== null
+      ) as { buffer: AudioBuffer; gainValue: number; id: string }[];
+
+      if (trackDataArray.length === 0) {
+        console.warn("No valid tracks could be processed for export.");
+        alert("No tracks could be processed for the export.");
+        this.emit("export_error", "No processable tracks");
+        return null;
+      }
+
+      const maxLength = Math.max(
+        ...trackDataArray.map((data) => data.buffer.duration)
+      );
+      const sampleRate = this.audioContext.sampleRate;
+      const numberOfChannels = Math.max(
+        ...trackDataArray.map((data) => data.buffer.numberOfChannels)
+      );
+
+      console.log(
+        `Creating OfflineAudioContext: Length=${maxLength}s, SampleRate=${sampleRate}Hz, Channels=${numberOfChannels}`
+      );
+      const offlineContext = new OfflineAudioContext(
+        numberOfChannels,
+        Math.ceil(maxLength * sampleRate),
+        sampleRate
+      );
+
+      trackDataArray.forEach(({ buffer, gainValue, id }) => {
+        console.log(
+          `Adding track ${id} to mixdown (Gain: ${gainValue.toFixed(2)})`
+        );
+        const source = offlineContext.createBufferSource();
+        source.buffer = buffer;
+        const gainNode = offlineContext.createGain();
+        gainNode.gain.value = gainValue;
+        source.connect(gainNode);
+        gainNode.connect(offlineContext.destination);
+        source.start(0);
+      });
+
+      console.log("Rendering offline context...");
+      const renderedBuffer = await offlineContext.startRendering();
+      console.log("Offline rendering complete.");
+
+      const wavBlob = this.audioBufferToWav(renderedBuffer);
+
+      const url = URL.createObjectURL(wavBlob);
+      console.log("Export successful, WAV Blob created.");
+
+      this.emit("export_complete", { blob: wavBlob, url: url });
+
+      return { blob: wavBlob, url: url };
+    } catch (error) {
+      console.error("Error during mixdown export:", error);
+      alert(
+        `An error occurred during export: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      this.emit("export_error", error);
+      return null;
+    }
+  }
+
+  private audioBufferToWav(buffer: AudioBuffer): Blob {
+    const numOfChan = buffer.numberOfChannels;
+    const L = buffer.length * numOfChan * 2 + 44; // 2 bytes per sample
+    const bufferArr = new ArrayBuffer(L);
+    const view = new DataView(bufferArr);
+    const channels: Float32Array[] = [];
+    let sample: number;
+    let offset = 0;
+    let pos = 0;
+
+    // Write WAVE header
+    setUint32(0x46464952); // "RIFF"
+    setUint32(L - 8); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+
+    setUint32(0x20746d66); // "fmt " chunk
+    setUint32(16); // length = 16
+    setUint16(1); // PCM (uncompressed)
+    setUint16(numOfChan);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+    setUint16(numOfChan * 2); // block-align
+    setUint16(16); // 16-bit (hardcoded in this implementation)
+
+    setUint32(0x61746164); // "data" - chunk
+    setUint32(L - pos); // chunk length
+
+    // Write interleaved data
+    for (let i = 0; i < buffer.numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+
+    while (pos < L) {
+      for (let i = 0; i < numOfChan; i++) {
+        // Interleave channels
+        sample = Math.max(-1, Math.min(1, channels[i][offset])); // Clamp
+        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0; // Convert to 16-bit signed int
+        view.setInt16(pos, sample, true); // Write 16-bit sample
+        pos += 2;
+      }
+      offset++; // Next frame
+    }
+
+    return new Blob([view], { type: "audio/wav" });
+
+    function setUint16(data: number) {
+      view.setUint16(pos, data, true);
+      pos += 2;
+    }
+
+    function setUint32(data: number) {
+      view.setUint32(pos, data, true);
+      pos += 4;
+    }
+  }
+
+  // --- End Export Functionality ---
 }
 
 export const audioEngine = new AudioEngine();
