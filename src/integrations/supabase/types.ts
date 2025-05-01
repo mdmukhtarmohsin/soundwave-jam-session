@@ -9,7 +9,98 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      jam_rooms: {
+        Row: {
+          bpm: number
+          created_at: string
+          host_id: string
+          id: string
+          is_private: boolean
+          key: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          bpm?: number
+          created_at?: string
+          host_id: string
+          id?: string
+          is_private?: boolean
+          key?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          bpm?: number
+          created_at?: string
+          host_id?: string
+          id?: string
+          is_private?: boolean
+          key?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tracks: {
+        Row: {
+          created_at: string
+          creator_id: string
+          id: string
+          jam_room_id: string
+          name: string
+          storage_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          id?: string
+          jam_room_id: string
+          name: string
+          storage_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          id?: string
+          jam_room_id?: string
+          name?: string
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracks_jam_room_id_fkey"
+            columns: ["jam_room_id"]
+            isOneToOne: false
+            referencedRelation: "jam_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -69,10 +69,10 @@ const TrackItem: React.FC<TrackItemProps> = ({
       setIsPlaying(true);
       
       // Listen for end of track to update UI
-      const track = audioEngine.audioStreams?.get(id);
-      if (track) {
-        const onEnded = () => setIsPlaying(false);
-        track.audio.addEventListener('ended', onEnded, { once: true });
+      const trackEnded = () => setIsPlaying(false);
+      const audioElement = document.getElementById(`audio-${id}`) as HTMLAudioElement;
+      if (audioElement) {
+        audioElement.addEventListener('ended', trackEnded, { once: true });
       }
     }
   };

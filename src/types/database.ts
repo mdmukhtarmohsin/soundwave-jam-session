@@ -7,6 +7,11 @@ export interface JamRoom {
   key: string;
   is_private: boolean;
   created_at: string;
+  updated_at: string;
+  host?: {
+    name: string;
+  };
+  tracks?: Track[];
 }
 
 export interface Track {
@@ -26,4 +31,6 @@ export interface Profile {
   id: string;
   name: string;
   avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
 }

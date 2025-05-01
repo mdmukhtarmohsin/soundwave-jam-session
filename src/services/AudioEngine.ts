@@ -3,7 +3,7 @@ class AudioEngine {
   private audioContext: AudioContext | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
-  private audioStreams: Map<string, { audio: HTMLAudioElement; gain: GainNode }> = new Map();
+  audioStreams: Map<string, { audio: HTMLAudioElement; gain: GainNode }> = new Map();
   private masterGain: GainNode | null = null;
   
   constructor() {
@@ -79,6 +79,7 @@ class AudioEngine {
     // Create audio element and connect to audio context
     const audio = new Audio(audioUrl);
     audio.loop = false;
+    audio.id = `audio-${id}`;
     
     const source = this.audioContext.createMediaElementSource(audio);
     const gainNode = this.audioContext.createGain();

@@ -47,7 +47,7 @@ export function useSupabase() {
         .select(`
           *,
           host:profiles!jam_rooms_host_id_fkey(name),
-          tracks:tracks(id)
+          tracks(id)
         `)
         .order('created_at', { ascending: false });
       
