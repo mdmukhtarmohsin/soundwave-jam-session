@@ -1,7 +1,5 @@
 # SoundBoard - Collaborative Music Creation Platform
 
-![SoundBoard Hero](public/soundboard-hero.png) <!-- Optional: Add a relevant screenshot/hero image -->
-
 SoundBoard is a web-based application designed for real-time collaborative music creation. It allows users to create jam rooms, record audio loops, and build musical pieces together.
 
 ## Core Concept
@@ -110,19 +108,9 @@ SoundBoard provides virtual spaces (Jam Rooms) where musicians can record and la
     - Delete tracks or the entire room (if you are the host).
 4.  **Profile:** Check your stats and activity.
 
-## Project info
-
-**URL**: https://lovable.dev/projects/104ca5f3-292b-45f4-b503-f5e28f3223a3
-
 ## How can I edit this code?
 
 There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/104ca5f3-292b-45f4-b503-f5e28f3223a3) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
 
 **Use your preferred IDE**
 
