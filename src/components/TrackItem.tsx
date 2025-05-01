@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { User, Clock, Play, Pause, Repeat, Trash2 } from "lucide-react";
+import WaveformVisualizer from "./WaveformVisualizer";
 import { audioEngine } from "@/services/AudioEngine";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
@@ -98,7 +99,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
   };
 
   const toggleBaseClasses =
-    "transition-colors h-8 w-8 data-[state=on]:text-white";
+    "transition-colors h-8 w-8 data-[state=on]:text-white flex-shrink-0";
   const toggleInactiveClasses =
     "bg-gray-700/50 text-gray-400 hover:bg-gray-600/70 hover:text-gray-200";
   const toggleActiveClasses =
@@ -134,7 +135,7 @@ const TrackItem: React.FC<TrackItemProps> = ({
         </Toggle>
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 px-2">
         <h3
           className="font-medium text-white truncate text-sm leading-tight"
           title={name}
@@ -142,20 +143,29 @@ const TrackItem: React.FC<TrackItemProps> = ({
           {name}
         </h3>
         <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
-          <span title={creator} className="flex items-center gap-0.5">
+          <span title={creator} className="flex items-center gap-0.5 truncate">
             <User size={12} />
             {creator}
           </span>
-          <span>·</span>
-          <span title={timestamp} className="flex items-center gap-0.5">
+          <span className="text-gray-600">·</span>
+          <span
+            title={timestamp}
+            className="flex items-center gap-0.5 flex-shrink-0"
+          >
             <Clock size={12} />
             {formattedTimestamp()}
           </span>
         </div>
       </div>
 
+      {audioUrl && (
+        <div className="flex-1 h-10 mx-2 min-w-[100px] max-w-[300px]">
+          <WaveformVisualizer isAnimated={isPlaying} height="h-full" />
+        </div>
+      )}
+
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="font-mono text-sm text-gray-300">
+        <span className="font-mono text-sm text-gray-300 w-10 text-right">
           {formatTime(trackDuration ?? 0)}
         </span>
         {isOwner && (
@@ -164,11 +174,12 @@ const TrackItem: React.FC<TrackItemProps> = ({
             size="icon"
             onClick={handleDelete}
             aria-label="Delete track"
-            className="h-7 w-7 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-full p-1"
+            className="h-7 w-7 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-full p-1 flex-shrink-0"
           >
             <Trash2 size={14} />
           </Button>
         )}
+        {!isOwner && <div className="h-7 w-7 flex-shrink-0"></div>}
       </div>
     </div>
   );

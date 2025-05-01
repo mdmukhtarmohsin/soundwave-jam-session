@@ -1,19 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/sonner";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Lock, Globe, Share, Download, Play, Pause, Copy } from "lucide-react";
+import {
+  Lock,
+  Globe,
+  Copy,
+  Share,
+  Play,
+  Pause,
+  Mic,
+  Download,
+} from "lucide-react";
 import Header from "@/components/Header";
 import Recorder from "@/components/Recorder";
 import TrackList from "@/components/TrackList";
-import WaveformVisualizer from "@/components/WaveformVisualizer";
 import { useSupabase } from "@/hooks/useSupabase";
 import { useAuth } from "@/context/AuthContext";
 import { audioEngine } from "@/services/AudioEngine";
 import { JamRoom as JamRoomType, Track } from "@/types/database";
+import WaveformVisualizer from "@/components/WaveformVisualizer";
 
 type Collaborator = {
   id: string;
@@ -204,36 +213,36 @@ const JamRoom = () => {
   };
 
   // --- Add Handler for Deleting Track ---
-  const handleDeleteTrack = async (
-    trackId: string,
-    storagePath?: string | null
-  ) => {
-    // Optional: Add confirmation dialog here
-    // if (!window.confirm('Are you sure you want to delete this track?')) return;
+  const handleDeleteTrack = useCallback(
+    async (trackId: string, storagePath?: string | null) => {
+      // Optional: Add confirmation dialog here
+      // if (!window.confirm('Are you sure you want to delete this track?')) return;
 
-    try {
-      const success = await deleteTrack(trackId, storagePath);
-      if (success) {
-        // Remove track from local state for immediate UI update
-        setTracks((prevTracks) => prevTracks.filter((t) => t.id !== trackId));
-        // Optional: Could also call loadTracks() again, but filtering is faster
+      try {
+        const success = await deleteTrack(trackId, storagePath);
+        if (success) {
+          // Remove track from local state for immediate UI update
+          setTracks((prevTracks) => prevTracks.filter((t) => t.id !== trackId));
+          // Optional: Could also call loadTracks() again, but filtering is faster
+        }
+      } catch (error) {
+        // Error already handled by toast in useSupabase hook
+        console.error("Error during track deletion process:", error);
       }
-    } catch (error) {
-      // Error already handled by toast in useSupabase hook
-      console.error("Error during track deletion process:", error);
-    }
-  };
+    },
+    [deleteTrack]
+  );
   // --- End Handler ---
 
   // Volume change handler
-  const handleVolumeChange = (id: string, volume: number) => {
+  const handleVolumeChange = useCallback(() => {
     // Already handled in TrackItem via audioEngine
-  };
+  }, []);
 
   // Mute toggle handler
-  const handleToggleMute = (id: string, muted: boolean) => {
+  const handleToggleMute = useCallback(() => {
     // Already handled in TrackItem via audioEngine
-  };
+  }, []);
 
   // Play all tracks
   const togglePlayback = () => {
@@ -246,14 +255,13 @@ const JamRoom = () => {
     }
   };
 
-  // Handle export mixdown
+  // --- Add back export handlers ---
   const exportMixdown = async () => {
     setIsProcessingExport(true);
-
+    setExportReady(false); // Reset ready state
+    setExportUrl(null);
     try {
       const mixdownBlob = await audioEngine.createMixdown();
-
-      // Create object URL for download
       const url = URL.createObjectURL(mixdownBlob);
       setExportUrl(url);
       setExportReady(true);
@@ -266,79 +274,52 @@ const JamRoom = () => {
     }
   };
 
-  // Download mixdown
   const downloadMixdown = () => {
     if (!exportUrl) return;
-
     const a = document.createElement("a");
     a.href = exportUrl;
     a.download = `${roomTitle.replace(/\s+/g, "_")}_mixdown.wav`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    // Optionally reset state after download
+    // setExportReady(false);
+    // setExportUrl(null);
   };
+  // --- End export handlers ---
 
   if (isLoadingRoom) {
     return (
       <div className="min-h-screen bg-soundboard-dark text-white flex items-center justify-center">
         <div className="flex flex-col items-center">
-          <WaveformVisualizer
-            isAnimated={true}
-            height="h-12"
-            className="w-48"
-          />
           <p className="mt-4 text-white/70">Loading jam room...</p>
         </div>
       </div>
     );
   }
 
+  // Simpler card style from image
+  const cardClasses =
+    "bg-gray-800/60 border border-gray-700/80 rounded-lg p-4 sm:p-6 shadow-md";
+
   return (
-    <div className="min-h-screen bg-soundboard-dark text-white">
+    <div className="min-h-screen bg-gray-900 text-white">
       <Header isAuthenticated={true} />
 
-      <div className="pt-24 pb-16 px-4 md:px-6 max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-8 gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Input
-                value={roomTitle}
-                onChange={(e) => setRoomTitle(e.target.value)}
-                onBlur={handleTitleChange}
-                disabled={!isHost}
-                className={`text-2xl font-bold bg-transparent border-transparent hover:border-white/10 focus:border-white/20 focus:bg-white/5 p-1 ${
-                  !isHost ? "cursor-default" : ""
-                }`}
-              />
-              {isHost && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="border-white/10 hover:bg-white/5"
-                  onClick={togglePrivacy}
-                >
-                  {isPrivate ? <Lock size={16} /> : <Globe size={16} />}
-                </Button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {jamRoom && (
-                <>
-                  <Badge
-                    variant="outline"
-                    className="bg-black/50 text-white/90 border-white/10"
-                  >
-                    {jamRoom.bpm} BPM
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="bg-black/50 text-white/90 border-white/10"
-                  >
-                    {jamRoom.key}
-                  </Badge>
-                </>
-              )}
+      <div className="max-w-screen-xl mx-auto px-4 pt-24 pb-16 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        {/* --- Left Column --- */}
+        <div className="md:col-span-1 space-y-6">
+          {/* Room Info Card */}
+          <div className={cardClasses}>
+            <div className="flex justify-between items-start mb-3">
+              {/* Simple Title Display */}
+              <h1
+                className="text-xl font-semibold truncate pr-2"
+                title={roomTitle}
+              >
+                {roomTitle}
+              </h1>
+              {/* Privacy Badge (Clickable) */}
               <Badge
                 variant={isPrivate ? "destructive" : "secondary"}
                 className={`text-white text-xs font-medium border ${
@@ -374,141 +355,169 @@ const JamRoom = () => {
                 )}
               </Badge>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="glass-morphism px-3 py-2 rounded-lg flex items-center gap-2">
-              <span className="text-xs text-white/60">Room Code:</span>
-              <code className="font-mono text-white">{id}</code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-white/60 hover:text-white hover:bg-white/10"
-                onClick={copyRoomCode}
+            {/* BPM/Key Badges */}
+            <div className="flex items-center gap-2 flex-wrap mb-4">
+              <Badge
+                variant="secondary"
+                className="bg-black/50 text-white/80 border-white/10 text-xs"
               >
-                <Copy size={14} />
-              </Button>
+                {jamRoom?.bpm} BPM
+              </Badge>
+              <Badge
+                variant="secondary"
+                className="bg-black/50 text-white/80 border-white/10 text-xs"
+              >
+                {jamRoom?.key}
+              </Badge>
             </div>
-
-            <Button
-              variant="outline"
-              size="icon"
-              className="border-white/10 hover:bg-white/5"
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                toast("Room link copied to clipboard");
-              }}
-            >
-              <Share size={16} />
-            </Button>
-          </div>
-        </div>
-
-        {/* Collaborators Section */}
-        <div className="mb-8">
-          <h3 className="text-lg font-medium mb-3">Collaborators</h3>
-          <div className="flex flex-wrap gap-3">
-            {collaborators.map((user) => (
-              <div key={user.id} className="flex flex-col items-center gap-1">
-                <div
-                  className={`relative ${
-                    user.isRecording ? "pulse-recording" : ""
-                  }`}
+            {/* Code & Share Row */}
+            <div className="flex items-center justify-between gap-2 bg-black/30 border border-white/10 px-3 py-1.5 rounded-md">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-white/60">Code:</span>
+                <code className="font-mono text-sm text-white">{id}</code>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-white/60 hover:text-white hover:bg-white/5"
+                  onClick={copyRoomCode}
+                  aria-label="Copy room code"
                 >
-                  <Avatar className="h-12 w-12 border-2 border-soundboard-primary">
-                    <AvatarFallback className="bg-soundboard-secondary text-white">
-                      {user.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  {user.isHost && (
-                    <div className="absolute -top-1 -right-1 bg-soundboard-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      H
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs text-white/80">{user.name}</span>
-                {user.isRecording && (
-                  <Badge className="bg-red-500 h-5 text-[10px] font-normal">
-                    Recording
-                  </Badge>
-                )}
+                  <Copy size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-white/60 hover:text-white hover:bg-white/5"
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    toast("Link copied");
+                  }}
+                  aria-label="Copy room link"
+                >
+                  <Share size={14} />
+                </Button>
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Collaborators Card */}
+          <div className={cardClasses}>
+            <h2 className="text-lg font-semibold mb-4">Collaborators</h2>
+            <div className="flex flex-wrap gap-x-4 gap-y-3">
+              {collaborators.map((collabUser) => (
+                <div
+                  key={collabUser.id}
+                  className="flex items-center gap-2 group"
+                >
+                  <div
+                    className={`relative ${
+                      collabUser.isRecording ? "animate-pulse" : ""
+                    }`}
+                  >
+                    <Avatar className="h-10 w-10 border-2 border-soundboard-primary">
+                      <AvatarFallback className="bg-soundboard-secondary text-white">
+                        {collabUser.name?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    {collabUser.isHost && (
+                      <div
+                        className="absolute -top-1 -right-1 bg-soundboard-primary text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-gray-800"
+                        title="Host"
+                      >
+                        H
+                      </div>
+                    )}
+                    {collabUser.isRecording && (
+                      <div
+                        className="absolute bottom-0 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center border border-gray-800"
+                        title="Recording"
+                      >
+                        <Mic size={8} />
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className="text-sm text-white/80 truncate group-hover:text-white transition-colors"
+                    title={collabUser.name}
+                  >
+                    {collabUser.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recorder Card */}
+          <div className={cardClasses}>
+            <Recorder onSaveLoop={handleSaveLoop} />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Recorder */}
-          <div className="lg:col-span-1">
-            <Recorder onSaveLoop={handleSaveLoop} />
+        {/* --- Right Column --- */}
+        <div className="md:col-span-2 space-y-6">
+          {/* --- Global Controls Card (Play All / Export) --- */}
+          {tracks.length > 0 && (
+            <div
+              className={`${cardClasses} flex flex-col sm:flex-row gap-4 justify-between items-center`}
+            >
+              {/* Play All Button */}
+              <Button
+                onClick={togglePlayback}
+                className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
+                aria-label={isPlaying ? "Pause all tracks" : "Play all tracks"}
+              >
+                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                <span>
+                  {isPlaying ? "Pause All Tracks" : "Play All Tracks"}
+                </span>
+              </Button>
 
-            {/* Playback Controls */}
-            {tracks.length > 0 && (
-              <div className="glass-morphism rounded-xl p-6 mt-6">
-                <h3 className="text-lg font-medium mb-4">Playback</h3>
-                <div className="flex flex-col items-center">
-                  <Button
-                    onClick={togglePlayback}
-                    className="bg-soundboard-primary hover:bg-soundboard-primary/80 flex items-center gap-2 mb-4"
-                  >
-                    {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-                    <span>
-                      {isPlaying ? "Pause All Tracks" : "Play All Tracks"}
-                    </span>
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Export Section */}
-            {tracks.length > 0 && (
-              <div className="glass-morphism rounded-xl p-6 mt-6">
-                <h3 className="text-lg font-medium mb-4">Export Mixdown</h3>
-
-                {exportReady ? (
-                  <div className="flex flex-col items-center">
-                    <p className="text-white/60 mb-3 text-sm text-center">
-                      Your mixdown is ready to download!
-                    </p>
-                    <Button
-                      className="bg-soundboard-primary hover:bg-soundboard-primary/80 flex items-center gap-2"
-                      onClick={downloadMixdown}
-                    >
+              {/* Export Button Area - Combined Logic */}
+              {exportReady ? (
+                // Show Download button when ready
+                <Button
+                  className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md"
+                  onClick={downloadMixdown}
+                >
+                  <Download size={16} />
+                  <span>Download Mix</span>
+                </Button>
+              ) : (
+                // Show Export button otherwise
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto bg-gray-700/50 border-gray-600 hover:bg-gray-600/80 text-white/80 hover:text-white flex items-center justify-center gap-2 shadow-md py-2.5 px-5 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={exportMixdown}
+                  disabled={isProcessingExport}
+                >
+                  {isProcessingExport ? (
+                    <>
+                      <WaveformVisualizer
+                        height="h-4"
+                        className="w-10 mr-1"
+                        isAnimated={true}
+                      />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
                       <Download size={16} />
-                      <span>Download Mix</span>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <p className="text-white/60 mb-3 text-sm text-center">
-                      Mixes all active tracks into one audio file
-                    </p>
-                    <Button
-                      onClick={exportMixdown}
-                      disabled={isProcessingExport}
-                      className="bg-soundboard-primary hover:bg-soundboard-primary/80"
-                    >
-                      {isProcessingExport ? (
-                        <span className="flex items-center gap-2">
-                          <WaveformVisualizer height="h-4" className="w-16" />
-                          <span>Processing...</span>
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <Download size={16} />
-                          <span>Export Mixdown</span>
-                        </span>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                      <span>Export Mix</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+          {/* --- End Global Controls Card --- */}
 
-          {/* Right Column - Track List */}
-          <div className="lg:col-span-2">
-            <h3 className="text-lg font-medium mb-4">Tracks</h3>
+          {/* Track List Section */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4">
+              Tracks ({tracks.length})
+            </h2>
             <TrackList
               tracks={tracks}
               onVolumeChange={handleVolumeChange}
