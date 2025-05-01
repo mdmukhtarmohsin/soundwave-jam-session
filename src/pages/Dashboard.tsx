@@ -25,6 +25,7 @@ import Header from "@/components/Header";
 import JamRoomCard, { JamRoomCardProps } from "@/components/JamRoomCard";
 import { useSupabase } from "@/hooks/useSupabase";
 import { useAuth } from "@/context/AuthContext";
+import { formatDistanceToNow } from "date-fns";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("my-rooms");
@@ -44,48 +45,49 @@ const Dashboard = () => {
 
   // Load jam rooms
   useEffect(() => {
-    loadJamRooms();
+    loadRooms();
   }, []);
 
-  const loadJamRooms = async () => {
+  const loadRooms = async () => {
     setIsLoading(true);
     try {
-      const rooms = await getJamRooms();
+      const allRooms = await getJamRooms();
+      const formattedRooms = allRooms.map((room) => {
+        // Safely access host name, checking if host exists and has a name property
+        const hostName =
+          typeof room.host === "object" &&
+          room.host !== null &&
+          "name" in room.host &&
+          room.host.name
+            ? room.host.name
+            : "Unknown";
 
-      // Filter rooms into categories
-      const myRoomsData = rooms
-        .filter((room) => room.host_id === user?.id)
-        .map((room) => ({
+        return {
           id: room.id,
           title: room.title,
-          host: room.host?.name || "You",
-          isHost: true,
-          bpm: room.bpm,
-          key: room.key,
-          isPrivate: room.is_private,
-          loopCount: room.tracks?.length || 0,
-          createdAt: new Date(room.created_at).toLocaleDateString(),
-        }));
-
-      const publicRoomsData = rooms
-        .filter((room) => !room.is_private) // Filter only by is_private = false
-        .map((room) => ({
-          id: room.id,
-          title: room.title,
-          host: room.host?.name || "Unknown",
+          host: hostName, // Use the safely accessed host name
           isHost: room.host_id === user?.id,
           bpm: room.bpm,
-          key: room.key,
+          musicKey: room.key,
           isPrivate: room.is_private,
           loopCount: room.tracks?.length || 0,
-          createdAt: new Date(room.created_at).toLocaleDateString(),
-        }));
+          createdAt: formatDistanceToNow(new Date(room.created_at), {
+            addSuffix: true,
+          }),
+        };
+      });
 
-      setMyRooms(myRoomsData);
-      setPublicRooms(publicRoomsData);
+      // Separate into my rooms and public rooms
+      const my = formattedRooms.filter((room) => room.isHost);
+      const pub = formattedRooms.filter(
+        (room) => !room.isPrivate && !room.isHost
+      );
+
+      setMyRooms(my);
+      setPublicRooms(pub);
     } catch (error) {
-      console.error("Failed to load jam rooms:", error);
-      toast.error("Failed to load jam rooms");
+      console.error("Failed to load rooms:", error);
+      toast.error("Failed to load rooms");
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +136,18 @@ const Dashboard = () => {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {rooms.map((room) => (
-            <JamRoomCard key={room.id} {...room} />
+            <JamRoomCard
+              key={room.id}
+              id={room.id}
+              title={room.title}
+              host={room.host}
+              isHost={room.isHost}
+              bpm={room.bpm}
+              musicKey={room.musicKey}
+              isPrivate={room.isPrivate}
+              loopCount={room.loopCount}
+              createdAt={room.createdAt}
+            />
           ))}
         </div>
       );

@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Music, Clock, Lock, Globe, User } from "lucide-react";
@@ -11,7 +10,7 @@ export interface JamRoomCardProps {
   host: string;
   isHost: boolean;
   bpm: number;
-  key: string;
+  musicKey: string;
   isPrivate: boolean;
   loopCount: number;
   createdAt: string;
@@ -23,7 +22,7 @@ const JamRoomCard = ({
   host,
   isHost,
   bpm,
-  key,
+  musicKey,
   isPrivate,
   loopCount,
   createdAt,
@@ -40,18 +39,26 @@ const JamRoomCard = ({
                 <span>{host}</span>
               </div>
               {isHost && (
-                <Badge className="bg-soundboard-primary text-xs font-normal py-0 h-4">Host</Badge>
+                <Badge className="bg-soundboard-primary text-xs font-normal py-0 h-4">
+                  Host
+                </Badge>
               )}
             </div>
           </div>
           <div className="flex gap-1">
             {isPrivate ? (
-              <Badge variant="outline" className="border-white/20 flex items-center gap-1 h-6">
+              <Badge
+                variant="outline"
+                className="border-white/20 flex items-center gap-1 h-6"
+              >
                 <Lock size={12} />
                 <span>Private</span>
               </Badge>
             ) : (
-              <Badge variant="outline" className="border-white/20 flex items-center gap-1 h-6">
+              <Badge
+                variant="outline"
+                className="border-white/20 flex items-center gap-1 h-6"
+              >
                 <Globe size={12} />
                 <span>Public</span>
               </Badge>
@@ -66,7 +73,7 @@ const JamRoomCard = ({
           </div>
           <div className="flex items-center gap-1 text-sm text-white/70">
             <Music size={14} />
-            <span>{key}</span>
+            <span>{musicKey}</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-white/70">
             <span className="font-medium">{loopCount}</span>
