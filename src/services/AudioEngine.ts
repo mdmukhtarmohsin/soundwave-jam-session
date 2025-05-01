@@ -109,11 +109,25 @@ class AudioEngine {
     audio.loop = false;
     audio.id = `audio-${id}`;
 
-    // --- Listen for ended event internally ---
+    // --- Listen for events internally ---
+    const onDurationChange = () => {
+      const duration = audio.duration;
+      // Only emit metadata once we have a finite duration
+      if (duration && isFinite(duration)) {
+        console.log(`[AudioEngine] Duration determined for ${id}: ${duration}`);
+        this.emit("metadata", { id, duration });
+        // Optional: Remove listener once duration is known to prevent multiple emits
+        audio.removeEventListener("durationchange", onDurationChange);
+      }
+    };
+    // Remove the 'loadedmetadata' listener
+    // audio.addEventListener('loadedmetadata', () => { ... });
+    audio.addEventListener("durationchange", onDurationChange);
+
     audio.addEventListener("ended", () => {
-      this.emit("pause", id); // Emit pause when track naturally ends
+      this.emit("pause", id);
     });
-    // --- End ended listener ---
+    // --- End event listeners ---
 
     const source = this.audioContext.createMediaElementSource(audio);
     const gainNode = this.audioContext.createGain();
@@ -300,6 +314,18 @@ class AudioEngine {
     });
     this.audioStreams.clear();
   }
+
+  // --- Add setTrackLooping method ---
+  setTrackLooping(id: string, shouldLoop: boolean): void {
+    const track = this.audioStreams.get(id);
+    if (track) {
+      track.audio.loop = shouldLoop;
+      console.log(`[AudioEngine] Track ${id} loop set to: ${shouldLoop}`);
+    } else {
+      console.warn(`[AudioEngine] Track not found for setting loop: ${id}`);
+    }
+  }
+  // --- End setTrackLooping method ---
 }
 
 export const audioEngine = new AudioEngine();
