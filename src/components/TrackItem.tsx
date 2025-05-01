@@ -36,7 +36,28 @@ const TrackItem: React.FC<TrackItemProps> = ({
       setIsLoaded(true);
     }
 
+    // --- Subscribe to AudioEngine events ---
+    const handlePlay = (trackId: string) => {
+      if (trackId === id) {
+        setIsPlaying(true);
+      }
+    };
+    const handlePause = (trackId: string) => {
+      if (trackId === id) {
+        setIsPlaying(false);
+      }
+    };
+
+    audioEngine.on("play", handlePlay);
+    audioEngine.on("pause", handlePause);
+    // --- End subscription ---
+
     return () => {
+      // --- Unsubscribe on cleanup ---
+      audioEngine.off("play", handlePlay);
+      audioEngine.off("pause", handlePause);
+      // --- End unsubscribe ---
+
       if (isLoaded) {
         audioEngine.removeTrack(id);
       }
@@ -64,21 +85,12 @@ const TrackItem: React.FC<TrackItemProps> = ({
   const togglePlayback = () => {
     if (!audioUrl) return;
 
+    // We still use the engine's individual methods,
+    // but the state update will now happen via the emitted events
     if (isPlaying) {
       audioEngine.pauseTrack(id);
-      setIsPlaying(false);
     } else {
       audioEngine.playTrack(id);
-      setIsPlaying(true);
-
-      // Listen for end of track to update UI
-      const trackEnded = () => setIsPlaying(false);
-      const audioElement = document.getElementById(
-        `audio-${id}`
-      ) as HTMLAudioElement;
-      if (audioElement) {
-        audioElement.addEventListener("ended", trackEnded, { once: true });
-      }
     }
   };
 

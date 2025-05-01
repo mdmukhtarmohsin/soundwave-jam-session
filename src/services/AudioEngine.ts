@@ -6,6 +6,31 @@ class AudioEngine {
     new Map();
   private masterGain: GainNode | null = null;
 
+  // --- Event Emitter Setup ---
+  private listeners: {
+    [key: string]: Array<(data?: any) => void>;
+  } = {};
+
+  on(event: string, callback: (data?: any) => void): void {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(callback);
+  }
+
+  off(event: string, callback: (data?: any) => void): void {
+    if (!this.listeners[event]) return;
+    this.listeners[event] = this.listeners[event].filter(
+      (listener) => listener !== callback
+    );
+  }
+
+  private emit(event: string, data?: any): void {
+    if (!this.listeners[event]) return;
+    this.listeners[event].forEach((listener) => listener(data));
+  }
+  // --- End Event Emitter Setup ---
+
   constructor() {
     this.initAudioContext();
   }
@@ -84,6 +109,12 @@ class AudioEngine {
     audio.loop = false;
     audio.id = `audio-${id}`;
 
+    // --- Listen for ended event internally ---
+    audio.addEventListener("ended", () => {
+      this.emit("pause", id); // Emit pause when track naturally ends
+    });
+    // --- End ended listener ---
+
     const source = this.audioContext.createMediaElementSource(audio);
     const gainNode = this.audioContext.createGain();
 
@@ -129,6 +160,9 @@ class AudioEngine {
             track.audio.currentTime = 0;
             track.audio
               .play()
+              .then(() => {
+                this.emit("play", id); // Emit play event
+              })
               .catch((err) =>
                 console.error(
                   "[AudioEngine] Error playing track after resume:",
@@ -144,10 +178,15 @@ class AudioEngine {
         track.audio.currentTime = 0;
         track.audio
           .play()
+          .then(() => {
+            this.emit("play", id); // Emit play event
+          })
           .catch((err) =>
             console.error("[AudioEngine] Error playing track:", err)
           );
       }
+    } else {
+      console.warn(`[AudioEngine] Track not found for play: ${id}`);
     }
   }
 
@@ -155,6 +194,9 @@ class AudioEngine {
     const track = this.audioStreams.get(id);
     if (track) {
       track.audio.pause();
+      this.emit("pause", id); // Emit pause event
+    } else {
+      console.warn(`[AudioEngine] Track not found for pause: ${id}`);
     }
   }
 
@@ -206,17 +248,48 @@ class AudioEngine {
   }
 
   playAllTracks(): void {
-    this.audioStreams.forEach((track) => {
+    // Ensure context is running before attempting to play all
+    if (this.audioContext?.state === "suspended") {
+      this.audioContext
+        .resume()
+        .catch((err) =>
+          console.error(
+            "[AudioEngine] Error resuming context for playAll:",
+            err
+          )
+        );
+      // Note: We might ideally wait for resume(), but for playAll,
+      // attempting to play immediately after resume is often sufficient.
+    }
+
+    this.audioStreams.forEach((track, trackId) => {
+      // Individual play attempts might still need resume if the first one didn't take immediately
+      if (this.audioContext?.state === "suspended") {
+        this.audioContext
+          .resume()
+          .catch((err) =>
+            console.error(
+              "[AudioEngine] Error resuming context in playAll loop:",
+              err
+            )
+          );
+      }
       track.audio.currentTime = 0;
       track.audio
         .play()
-        .catch((err) => console.error("Error playing track:", err));
+        .then(() => {
+          this.emit("play", trackId);
+        })
+        .catch((err) =>
+          console.error("[AudioEngine] Error playing track in playAll:", err)
+        );
     });
   }
 
   pauseAllTracks(): void {
-    this.audioStreams.forEach((track) => {
+    this.audioStreams.forEach((track, trackId) => {
       track.audio.pause();
+      this.emit("pause", trackId); // Emit pause event for each track
     });
   }
 
