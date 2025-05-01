@@ -27,8 +27,13 @@ const JamRoom = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getJamRoomById, updateJamRoom, getTracksByJamRoomId, uploadTrack } =
-    useSupabase();
+  const {
+    getJamRoomById,
+    updateJamRoom,
+    getTracksByJamRoomId,
+    uploadTrack,
+    deleteTrack,
+  } = useSupabase();
 
   const [jamRoom, setJamRoom] = useState<JamRoomType | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -197,6 +202,28 @@ const JamRoom = () => {
       toast.error("Failed to save loop");
     }
   };
+
+  // --- Add Handler for Deleting Track ---
+  const handleDeleteTrack = async (
+    trackId: string,
+    storagePath?: string | null
+  ) => {
+    // Optional: Add confirmation dialog here
+    // if (!window.confirm('Are you sure you want to delete this track?')) return;
+
+    try {
+      const success = await deleteTrack(trackId, storagePath);
+      if (success) {
+        // Remove track from local state for immediate UI update
+        setTracks((prevTracks) => prevTracks.filter((t) => t.id !== trackId));
+        // Optional: Could also call loadTracks() again, but filtering is faster
+      }
+    } catch (error) {
+      // Error already handled by toast in useSupabase hook
+      console.error("Error during track deletion process:", error);
+    }
+  };
+  // --- End Handler ---
 
   // Volume change handler
   const handleVolumeChange = (id: string, volume: number) => {
@@ -458,6 +485,7 @@ const JamRoom = () => {
               tracks={tracks}
               onVolumeChange={handleVolumeChange}
               onToggleMute={handleToggleMute}
+              onDeleteTrack={handleDeleteTrack}
             />
           </div>
         </div>

@@ -213,6 +213,50 @@ export function useSupabase() {
     }
   };
 
+  // --- Add deleteTrack function ---
+  const deleteTrack = async (trackId: string, storagePath?: string | null) => {
+    try {
+      setLoading(true);
+
+      // 1. Delete the track record from the database
+      const { error: dbError } = await supabase
+        .from("tracks")
+        .delete()
+        .eq("id", trackId);
+
+      if (dbError) throw dbError;
+
+      // 2. If database deletion successful and storage path exists, delete from storage
+      if (storagePath) {
+        const { error: storageError } = await supabase.storage
+          .from("audio")
+          .remove([storagePath]);
+
+        if (storageError) {
+          // Log storage error but don't necessarily fail the whole operation
+          // if the DB record is gone.
+          console.warn(
+            `Failed to delete track from storage (${storagePath}):`,
+            storageError.message
+          );
+          toast.warning(
+            "Track deleted from list, but failed to remove storage file."
+          );
+        }
+      }
+
+      toast.success("Track deleted successfully");
+      return true;
+    } catch (error: any) {
+      console.error("Failed to delete track:", error);
+      toast.error("Failed to delete track: " + error.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  // --- End deleteTrack function ---
+
   // User profile
   const getUserProfile = async (userId?: string) => {
     const profileId = userId || user?.id;
@@ -273,6 +317,7 @@ export function useSupabase() {
     // Tracks
     uploadTrack,
     getTracksByJamRoomId,
+    deleteTrack,
     // Profile
     getUserProfile,
     updateUserProfile,

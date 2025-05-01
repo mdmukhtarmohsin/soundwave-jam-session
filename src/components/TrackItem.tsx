@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
+import { Button } from "@/components/ui/button";
 import {
   Volume,
   VolumeX,
@@ -9,10 +10,12 @@ import {
   Play,
   Pause,
   Repeat,
+  Trash2,
 } from "lucide-react";
 import WaveformVisualizer from "./WaveformVisualizer";
 import { audioEngine } from "@/services/AudioEngine";
 import { formatDistanceToNow } from "date-fns";
+import { useAuth } from "@/context/AuthContext";
 
 // Helper to format seconds into MM:SS
 const formatTime = (seconds: number): string => {
@@ -28,27 +31,36 @@ interface TrackItemProps {
   id: string;
   name: string;
   creator: string;
+  creatorId: string;
+  storagePath?: string | null;
   timestamp: string;
   audioUrl?: string;
   onVolumeChange: (id: string, volume: number) => void;
   onToggleMute: (id: string, muted: boolean) => void;
+  onDelete: (trackId: string, storagePath?: string | null) => void;
 }
 
 const TrackItem: React.FC<TrackItemProps> = ({
   id,
   name,
   creator,
+  creatorId,
+  storagePath,
   timestamp,
   audioUrl,
   onVolumeChange,
   onToggleMute,
+  onDelete,
 }) => {
+  const { user } = useAuth();
   const [volume, setVolume] = useState(75);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [trackDuration, setTrackDuration] = useState<number | null>(null);
   const [isLooping, setIsLooping] = useState(false);
+
+  const isOwner = user?.id === creatorId;
 
   useEffect(() => {
     if (audioUrl && !isLoaded) {
@@ -123,6 +135,10 @@ const TrackItem: React.FC<TrackItemProps> = ({
     audioEngine.setTrackLooping(id, newLoopState);
   };
 
+  const handleDelete = () => {
+    onDelete(id, storagePath);
+  };
+
   const formattedTimestamp = () => {
     try {
       return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
@@ -133,18 +149,18 @@ const TrackItem: React.FC<TrackItemProps> = ({
 
   return (
     <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-lg p-4 mb-3 transition-all flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3
-            className="font-medium text-white truncate max-w-[200px] sm:max-w-xs md:max-w-sm"
-            title={name}
-          >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-white truncate" title={name}>
             {name}
           </h3>
-          <div className="flex items-center gap-2 text-xs text-white/60 mt-1">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 text-xs text-white/60 mt-1 flex-wrap">
+            <div
+              className="flex items-center gap-1"
+              title={`Created by ${creator} (${creatorId})`}
+            >
               <User size={12} />
-              <span>{creator}</span>
+              <span className="truncate max-w-[100px]">{creator}</span>
             </div>
             <div className="flex items-center gap-1">
               <Clock size={12} />
@@ -152,8 +168,21 @@ const TrackItem: React.FC<TrackItemProps> = ({
             </div>
           </div>
         </div>
-        <div className="text-sm text-white/70 font-mono">
-          {formatTime(trackDuration ?? 0)}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-sm text-white/70 font-mono">
+            {formatTime(trackDuration ?? 0)}
+          </div>
+          {isOwner && (
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={handleDelete}
+              aria-label="Delete track"
+              className="bg-red-500/20 text-red-400 hover:bg-red-500/40 hover:text-red-300 h-7 w-7 p-1"
+            >
+              <Trash2 size={14} />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -168,7 +197,11 @@ const TrackItem: React.FC<TrackItemProps> = ({
               size="sm"
               pressed={isPlaying}
               onPressedChange={togglePlayback}
-              className={isPlaying ? "bg-soundboard-primary" : "bg-muted"}
+              className={`transition-colors ${
+                isPlaying
+                  ? "bg-soundboard-primary text-white hover:bg-soundboard-primary/90"
+                  : "bg-muted text-muted-foreground hover:bg-muted/90"
+              }`}
               aria-label={isPlaying ? "Pause track" : "Play track"}
             >
               {isPlaying ? <Pause size={16} /> : <Play size={16} />}
@@ -194,7 +227,11 @@ const TrackItem: React.FC<TrackItemProps> = ({
             size="sm"
             pressed={!isMuted}
             onPressedChange={toggleMute}
-            className={isMuted ? "bg-muted" : "bg-soundboard-primary"}
+            className={`transition-colors ${
+              isMuted
+                ? "bg-muted text-muted-foreground hover:bg-muted/90"
+                : "bg-soundboard-primary text-white hover:bg-soundboard-primary/90"
+            }`}
             aria-label={isMuted ? "Unmute track" : "Mute track"}
           >
             {isMuted ? <VolumeX size={16} /> : <Volume size={16} />}
