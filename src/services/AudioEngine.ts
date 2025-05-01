@@ -286,6 +286,9 @@ class AudioEngine {
             trackData.audio.currentTime = 0;
             trackData.audio
               .play()
+              .then(() => {
+                this.emit("play", id); // Emit play event for this track
+              })
               .catch((err) => console.error(`Error playing track ${id}:`, err));
           });
         })
@@ -298,20 +301,24 @@ class AudioEngine {
         trackData.audio.currentTime = 0;
         trackData.audio
           .play()
+          .then(() => {
+            this.emit("play", id); // Emit play event for this track
+          })
           .catch((err) => console.error(`Error playing track ${id}:`, err));
       });
     }
-    // Emit a general 'play_all' event if needed
-    this.emit("play_all");
+    // Remove general 'play_all' event if not needed elsewhere
+    // this.emit('play_all');
   }
 
   pauseAllTracks(): void {
     console.log("[AudioEngine] Pausing all tracks.");
     this.audioStreams.forEach((trackData, id) => {
       trackData.audio.pause();
+      this.emit("pause", id); // Emit pause event for this track
     });
-    // Emit a general 'pause_all' event if needed
-    this.emit("pause_all");
+    // Remove general 'pause_all' event if not needed elsewhere
+    // this.emit('pause_all');
   }
 
   cleanUp(): void {
